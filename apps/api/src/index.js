@@ -2,6 +2,14 @@ import crypto from "node:crypto";
 import cookieParser from "cookie-parser";
 import express from "express";
 import {
+  createAuction,
+  getAuction,
+  listAuctions,
+  migrateAuctions,
+  placeBid,
+  setAuctionPaused,
+} from "./auctions.js";
+import {
   countMasters,
   dashboardData,
   findMember,
@@ -278,11 +286,45 @@ app.patch("/api/members/:discordId", requireUser, wrap(async (req, res) => {
   res.json({ member: present(updated) });
 }));
 
+app.get("/api/auctions", requireUser, wrap(async (req, res) => {
+  res.json({ auctions: await listAuctions(req.member) });
+}));
+
+app.get("/api/auctions/:id", requireUser, wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id < 1) throw fail(400, "Leilão inválido.");
+  res.json(await getAuction(id, req.member));
+}));
+
+app.post("/api/auctions", requireUser, wrap(async (req, res) => {
+  res.status(201).json({ auction: await createAuction(req.member, req.body || {}) });
+}));
+
+app.post("/api/auctions/:id/bid", requireUser, wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id < 1) throw fail(400, "Leilão inválido.");
+  const amount = Number(req.body?.amount);
+  res.json({ auction: await placeBid(req.member, id, amount) });
+}));
+
+app.post("/api/auctions/:id/pause", requireUser, wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id < 1) throw fail(400, "Leilão inválido.");
+  res.json({ auction: await setAuctionPaused(req.member, id, true) });
+}));
+
+app.post("/api/auctions/:id/resume", requireUser, wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id < 1) throw fail(400, "Leilão inválido.");
+  res.json({ auction: await setAuctionPaused(req.member, id, false) });
+}));
+
 app.use((error, _req, res, _next) => {
   const status = error.status || 500;
   if (status >= 500) console.error(error);
   res.status(status).json({
     error: status >= 500 ? "Erro interno." : error.message,
+    ...(error.data || {}),
   });
 });
 
@@ -296,6 +338,7 @@ if (!process.env.SESSION_SECRET) {
 }
 
 await migrate();
+await migrateAuctions();
 app.listen(PORT, () => {
   console.log(`guildchapa api em :${PORT}`);
 });

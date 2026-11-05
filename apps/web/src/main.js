@@ -1,6 +1,13 @@
+import { auctionsView } from "./auctions.js";
+
 const API = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
 const number = new Intl.NumberFormat("pt-BR");
 const ROLE = { master: "Mestre", admin: "Admin", member: "Membro" };
+const PAGE_TITLES = {
+  painel: "Painel — Chapa",
+  membros: "Membros — Chapa",
+  leilao: "Leilão — Chapa",
+};
 const ERRORS = {
   discord_denied: "Autorização cancelada. Tente novamente para entrar com o Discord.",
   invalid_state: "Sessão de login expirada. Tente novamente.",
@@ -50,6 +57,7 @@ const icons = {
   moon: () => svgIcon(["M21 14.5A8.5 8.5 0 1 1 9.5 3 7 7 0 0 0 21 14.5z"]),
   grid: () => svgIcon(["M4 4h7v7H4z", "M13 4h7v7h-7z", "M4 13h7v7H4z", "M13 13h7v7h-7z"]),
   users: () => svgIcon(["M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2", "M9.5 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z", "M22 21v-2a4 4 0 0 0-3-3.87", "M16 3.13a4 4 0 0 1 0 7.75"]),
+  gavel: () => svgIcon(["M14 13l7 7", "M8.5 8.5l3 3", "M5 21h7", "M14 4l6 6-4 4-6-6z", "M3 14l4 4"]),
   out: () => svgIcon(["M9 6H5v12h4", "M10 12h9", "M16 8l4 4-4 4"]),
 };
 
@@ -123,7 +131,9 @@ async function api(path, options = {}) {
 
 function route() {
   if (!state.me) return "entrar";
-  return location.hash.replace(/^#\/?/, "") === "membros" ? "membros" : "painel";
+  const page = location.hash.replace(/^#\/?/, "");
+  if (page === "membros" || page === "leilao") return page;
+  return "painel";
 }
 
 function brand() {
@@ -333,7 +343,7 @@ function profile() {
 }
 
 function shell(active, content) {
-  document.title = active === "membros" ? "Membros — Chapa" : "Painel — Chapa";
+  document.title = PAGE_TITLES[active] || "Chapa";
   const link = (id, label, icon) => el("button", {
     type: "button",
     "aria-current": active === id ? "page" : null,
@@ -344,6 +354,7 @@ function shell(active, content) {
       brand(),
       el("nav", { className: "nav", "aria-label": "Seções" }, [
         link("painel", "Painel", icons.grid),
+        link("leilao", "Leilão", icons.gavel),
         link("membros", "Membros", icons.users),
       ]),
       el("button", {
@@ -366,6 +377,9 @@ function shell(active, content) {
 }
 
 async function render() {
+  const previous = document.querySelector(".auctions-page");
+  previous?.cleanup?.();
+
   const page = route();
   if (page === "entrar") {
     let status = { offline: true };
@@ -377,6 +391,10 @@ async function render() {
   if (page === "membros") {
     const data = await api("/api/members");
     shell("membros", membersView(data.members));
+    return;
+  }
+  if (page === "leilao") {
+    shell("leilao", auctionsView({ api, me: state.me }));
     return;
   }
   shell("painel", dashboardView(await api("/api/dashboard")));

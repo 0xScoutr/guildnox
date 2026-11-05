@@ -316,6 +316,115 @@ input, select {
 }
 .sheet-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .sheet-actions .btn { width: auto; }
+.sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px 0;
+}
+.auction-sheet { width: min(520px, calc(100vw - 32px)); }
+.auction-sheet .auction-detail { padding: 16px 20px 20px; display: grid; gap: 14px; }
+.auction-field { display: grid; gap: 6px; color: var(--muted); font-size: 13px; }
+
+.auctions-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.auctions-head .lede { margin-bottom: 0; }
+.auction-toolbar { display: grid; gap: 12px; margin-bottom: 14px; }
+.auction-toolbar .input {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.filter-chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.filter-chip {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 7px 12px;
+}
+.filter-chip.active {
+  background: var(--accent-soft);
+  border-color: rgba(201, 162, 74, 0.35);
+  color: var(--accent-2);
+}
+.auction-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.auction-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+}
+.auction-card:hover { background: var(--surface-2); border-color: var(--border-strong, #4a2430); }
+.auction-card.outbid { border-color: var(--danger); background: rgba(239, 106, 114, 0.08); }
+.auction-card.winning { border-color: rgba(99, 196, 126, 0.55); background: rgba(99, 196, 126, 0.08); }
+.auction-card-header { display: flex; align-items: flex-start; gap: 12px; }
+.auction-card-body { flex: 1; min-width: 0; }
+.auction-card-title { font-weight: 600; font-size: 15px; margin-bottom: 4px; }
+.auction-card-status-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+.auction-card-bid-status {
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  font-weight: 600;
+}
+.auction-card.outbid .auction-card-bid-status { color: var(--danger); }
+.auction-card.winning .auction-card-bid-status { color: #63c47e; }
+.auction-status {
+  display: inline-flex;
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 12px;
+  background: var(--accent-soft);
+  color: var(--accent-2);
+}
+.auction-status.status-live { background: rgba(99, 196, 126, 0.12); color: #63c47e; }
+.auction-status.status-paused,
+.auction-status.status-ended { background: rgba(239, 106, 114, 0.12); color: var(--danger); }
+.countdown-badge {
+  display: inline-flex;
+  min-width: 70px;
+  justify-content: flex-end;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--gold);
+}
+.auction-detail-top { display: flex; justify-content: space-between; gap: 12px; }
+.auction-detail-top h3 { margin: 0 0 6px; font-family: Cinzel, Georgia, serif; font-weight: 500; }
+.auction-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.auction-stats .stat em { display: block; margin-top: 4px; font-style: normal; }
+.auction-bids h3 { margin: 0 0 8px; font-size: 14px; }
+.auction-bid-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
 
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
@@ -330,9 +439,10 @@ input, select {
 }
 
 @media (max-width: 720px) {
-  .stats, .split { grid-template-columns: 1fr; }
+  .stats, .split, .auction-grid, .auction-stats { grid-template-columns: 1fr; }
   .main { padding: 18px; }
   .brand-game, .switch-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .auctions-head { flex-direction: column; }
 }
 
 @media (prefers-reduced-motion: reduce) {
