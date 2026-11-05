@@ -118,9 +118,27 @@ function themeSwitch() {
 }
 
 function medallion() {
-  return el("div", { className: "medallion" }, [
-    el("img", { src: "/logo.jpg", alt: "Chapa" }),
-  ]);
+  const wrap = el("div", { className: "medallion", "data-rune-ring": "spin" });
+  const pathId = `gc-rune-${Math.random().toString(36).slice(2, 8)}`;
+  const ring = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  ring.setAttribute("class", "rune-ring spin");
+  ring.setAttribute("viewBox", "0 0 200 200");
+  ring.setAttribute("aria-hidden", "true");
+  ring.innerHTML = `
+    <defs>
+      <path id="${pathId}" d="M100,100 m-84,0 a84,84 0 1,1 168,0 a84,84 0 1,1 -168,0"></path>
+    </defs>
+    <circle cx="100" cy="100" r="98"></circle>
+    <circle cx="100" cy="100" r="72"></circle>
+    <text>
+      <textPath href="#${pathId}" textLength="520" lengthAdjust="spacing">ᚠᚢᚦᚨᚱᚲᚷᚹᚺᚾᛁᛃᛇᛈᛉᛊᛏᛒᛖᛗᛚᛜᛞᛟ</textPath>
+    </text>
+  `;
+  wrap.append(
+    ring,
+    el("img", { className: "brand-logo", src: "/logo.jpg", alt: "Chapa" }),
+  );
+  return wrap;
 }
 
 async function api(path, options = {}) {
@@ -147,12 +165,9 @@ function route() {
 }
 
 function brand() {
-  return el("div", { className: "brand-lockup" }, [
+  return el("div", { className: "sidebar-brand" }, [
     medallion(),
-    el("div", {}, [
-      el("p", { className: "brand-name", text: "Chapa" }),
-      el("p", { className: "brand-game", text: "Vampir" }),
-    ]),
+    el("span", { className: "brand-name", text: "Chapa" }),
   ]);
 }
 
