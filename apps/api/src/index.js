@@ -7,6 +7,7 @@ import {
   listAuctions,
   migrateAuctions,
   placeBid,
+  setAuctionFavorite,
   setAuctionPaused,
 } from "./auctions.js";
 import {
@@ -151,7 +152,7 @@ app.use((req, res, next) => {
     res.setHeader("Vary", "Origin");
   }
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PATCH,OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PATCH,DELETE,OPTIONS");
   res.setHeader("Cache-Control", "no-store");
   if (req.method === "OPTIONS") return res.sendStatus(204);
   next();
@@ -317,6 +318,18 @@ app.post("/api/auctions/:id/resume", requireUser, wrap(async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id < 1) throw fail(400, "Leilão inválido.");
   res.json({ auction: await setAuctionPaused(req.member, id, false) });
+}));
+
+app.post("/api/auctions/:id/favorite", requireUser, wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id < 1) throw fail(400, "Leilão inválido.");
+  res.json({ auction: await setAuctionFavorite(req.member, id, true) });
+}));
+
+app.delete("/api/auctions/:id/favorite", requireUser, wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id < 1) throw fail(400, "Leilão inválido.");
+  res.json({ auction: await setAuctionFavorite(req.member, id, false) });
 }));
 
 app.use((error, _req, res, _next) => {

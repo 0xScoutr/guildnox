@@ -59,6 +59,18 @@ export async function migrateAuctions() {
   await pool.query(`
     CREATE INDEX IF NOT EXISTS auctions_expires_at_idx ON auctions(expires_at)
   `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS auction_favorites (
+      auction_id BIGINT NOT NULL REFERENCES auctions(id) ON DELETE CASCADE,
+      member_discord_id TEXT NOT NULL REFERENCES members(discord_id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (auction_id, member_discord_id)
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS auction_favorites_member_idx
+    ON auction_favorites(member_discord_id, created_at DESC)
+  `);
 }
 
 async function reservedDkp(discordId, client = pool) {
@@ -182,7 +194,7 @@ async function finalizeIfNeeded(row, client = pool) {
   return loadAuctionRow(row.id, client);
 }
 
-function presentAuction(row, top, viewerId, hasYourBid = false) {
+function presentAuction(row, top, viewerId, { hasYourBid = false, isFavorite = false } = {}) {
   const status = computeStatus(row);
   const currentBid = top ? top.amount : null;
   return {
@@ -205,15 +217,44 @@ function presentAuction(row, top, viewerId, hasYourBid = false) {
     minNextBid: minNextBid(row.starting_bid, currentBid),
     youAreHighestBidder: Boolean(top && top.bidder_discord_id === viewerId),
     hasYourBid,
+    isFavorite,
     winnerDiscordId: row.winner_discord_id,
   };
+}
+
+async function favoriteIdsFor(viewerId, auctionIds, client = pool) {
+  if (!auctionIds.length) return new Set();
+  const { rows } = await client.query(
+    `
+    SELECT auction_id
+    FROM auction_favorites
+    WHERE member_discord_id = $1
+      AND auction_id = ANY($2::bigint[])
+    `,
+    [viewerId, auctionIds],
+  );
+  return new Set(rows.map((row) => Number(row.auction_id)));
+}
+
+async function isFavoriteAuction(auctionId, viewerId, client = pool) {
+  const { rowCount } = await client.query(
+    `
+    SELECT 1 FROM auction_favorites
+    WHERE auction_id = $1 AND member_discord_id = $2
+    LIMIT 1
+    `,
+    [auctionId, viewerId],
+  );
+  return rowCount > 0;
 }
 
 export async function listAuctions(viewer) {
   const { rows } = await pool.query("SELECT * FROM auctions ORDER BY created_at DESC LIMIT 300");
   const out = [];
+  const ids = [];
   for (const row of rows) {
     const fresh = await finalizeIfNeeded(row);
+    ids.push(Number(fresh.id));
     const top = await topBid(fresh.id);
     const yours = await pool.query(
       `
@@ -223,9 +264,17 @@ export async function listAuctions(viewer) {
       `,
       [fresh.id, viewer.discord_id],
     );
-    out.push(presentAuction(fresh, top, viewer.discord_id, yours.rowCount > 0));
+    out.push({
+      fresh,
+      top,
+      hasYourBid: yours.rowCount > 0,
+    });
   }
-  return out;
+  const favorites = await favoriteIdsFor(viewer.discord_id, ids);
+  return out.map(({ fresh, top, hasYourBid }) => presentAuction(fresh, top, viewer.discord_id, {
+    hasYourBid,
+    isFavorite: favorites.has(Number(fresh.id)),
+  }));
 }
 
 export async function getAuction(id, viewer) {
@@ -235,7 +284,10 @@ export async function getAuction(id, viewer) {
   const top = await topBid(row.id);
   const bids = await listBids(row.id);
   const yours = bids.some((b) => b.bidder_discord_id === viewer.discord_id);
-  const detail = presentAuction(row, top, viewer.discord_id, yours);
+  const detail = presentAuction(row, top, viewer.discord_id, {
+    hasYourBid: yours,
+    isFavorite: await isFavoriteAuction(row.id, viewer.discord_id),
+  });
   return {
     ...detail,
     yourAvailableDkp: await availableDkp(viewer),
@@ -247,6 +299,30 @@ export async function getAuction(id, viewer) {
       yours: b.bidder_discord_id === viewer.discord_id,
     })),
   };
+}
+
+export async function setAuctionFavorite(viewer, id, favorite) {
+  const row = await loadAuctionRow(id);
+  if (!row) throw fail(404, "Leilão não encontrado.");
+  if (favorite) {
+    await pool.query(
+      `
+      INSERT INTO auction_favorites (auction_id, member_discord_id)
+      VALUES ($1, $2)
+      ON CONFLICT DO NOTHING
+      `,
+      [id, viewer.discord_id],
+    );
+  } else {
+    await pool.query(
+      `
+      DELETE FROM auction_favorites
+      WHERE auction_id = $1 AND member_discord_id = $2
+      `,
+      [id, viewer.discord_id],
+    );
+  }
+  return getAuction(id, viewer);
 }
 
 export async function createAuction(actor, body) {

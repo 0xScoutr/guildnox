@@ -12,6 +12,7 @@ const FILTERS = [
   { id: "upcoming", label: "Em breve" },
   { id: "ended", label: "Encerrados" },
   { id: "won", label: "Ganhos" },
+  { id: "favorites", label: "Favoritos" },
 ];
 
 const memory = { filter: "live", search: "" };
@@ -77,7 +78,33 @@ function matchesFilter(auction, filter) {
   if (filter === "upcoming") return auction.status === "upcoming";
   if (filter === "ended") return auction.status === "ended";
   if (filter === "won") return auction.status === "ended" && auction.youAreHighestBidder;
+  if (filter === "favorites") return Boolean(auction.isFavorite);
   return true;
+}
+
+function favoriteButton(api, auction, onChanged) {
+  const active = Boolean(auction.isFavorite);
+  const button = el("button", {
+    type: "button",
+    className: `auction-favorite-btn${active ? " active" : ""}`,
+    title: active ? "Remover dos favoritos" : "Adicionar aos favoritos",
+    "aria-label": active ? "Remover dos favoritos" : "Adicionar aos favoritos",
+    onClick: async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      button.disabled = true;
+      try {
+        await api(`/api/auctions/${auction.id}/favorite`, {
+          method: active ? "DELETE" : "POST",
+        });
+        await onChanged();
+      } catch {
+        button.disabled = false;
+      }
+    },
+  });
+  button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 17.3l-6.18 3.73 1.64-7.03L2 9.24l7.19-.61L12 2l2.81 6.63 7.19.61-5.46 4.76 1.64 7.03z"/></svg>`;
+  return button;
 }
 
 function matchesSearch(auction, query) {
@@ -110,19 +137,29 @@ function priceLine(auction) {
   return `Lance atual ${number.format(auction.currentBid)} DKP${auction.highestBidderNick ? ` · ${auction.highestBidderNick}` : ""}`;
 }
 
-function auctionCard(auction, onOpen) {
+function auctionCard(auction, { onOpen, api, onChanged }) {
   const classes = ["auction-card"];
   if (isOutbid(auction)) classes.push("outbid");
   else if (auction.youAreHighestBidder && isBidInPlay(auction)) classes.push("winning");
 
-  const card = el("button", {
-    type: "button",
+  const card = el("div", {
     className: classes.join(" "),
+    role: "button",
+    tabindex: "0",
     onClick: () => onOpen(auction.id),
+    onKeydown: (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        onOpen(auction.id);
+      }
+    },
   }, [
     el("div", { className: "auction-card-header" }, [
       el("div", { className: "auction-card-body" }, [
-        el("div", { className: "auction-card-title", text: auction.quantity > 1 ? `${auction.itemName} ×${auction.quantity}` : auction.itemName }),
+        el("div", { className: "auction-card-title-row" }, [
+          el("div", { className: "auction-card-title", text: auction.quantity > 1 ? `${auction.itemName} ×${auction.quantity}` : auction.itemName }),
+          favoriteButton(api, auction, onChanged),
+        ]),
         el("div", { className: "muted", text: priceLine(auction) }),
       ]),
       el("div", { className: "auction-card-status-stack" }, [
@@ -338,7 +375,13 @@ export function openAuctionDetail(api, auctionId, me, onChanged) {
     body.replaceChildren(
       el("div", { className: "auction-detail-top" }, [
         el("div", {}, [
-          el("h3", { text: detail.quantity > 1 ? `${detail.itemName} ×${detail.quantity}` : detail.itemName }),
+          el("div", { className: "auction-card-title-row" }, [
+            el("h3", { text: detail.quantity > 1 ? `${detail.itemName} ×${detail.quantity}` : detail.itemName }),
+            favoriteButton(api, detail, async () => {
+              await onChanged();
+              await load();
+            }),
+          ]),
           el("p", { className: "muted", text: detail.description || "Sem descrição." }),
         ]),
         el("div", { className: "auction-card-status-stack" }, [
@@ -469,8 +512,10 @@ export function auctionsView({ api, me }) {
       box.replaceChildren(el("p", { className: "muted", text: "Nada encontrado com esse filtro." }));
       return;
     }
-    box.replaceChildren(el("div", { className: "auction-grid" }, list.map((auction) => auctionCard(auction, (id) => {
-      openAuctionDetail(api, id, me, refresh);
+    box.replaceChildren(el("div", { className: "auction-grid" }, list.map((auction) => auctionCard(auction, {
+      api,
+      onChanged: refresh,
+      onOpen: (id) => openAuctionDetail(api, id, me, refresh),
     }))));
   }
 

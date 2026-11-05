@@ -594,7 +594,37 @@ input, select {
 .auction-card.winning { border-color: rgba(99, 196, 126, 0.55); background: rgba(99, 196, 126, 0.08); }
 .auction-card-header { display: flex; align-items: flex-start; gap: 12px; }
 .auction-card-body { flex: 1; min-width: 0; }
-.auction-card-title { font-weight: 600; font-size: 15px; margin-bottom: 4px; }
+.auction-card-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.auction-card-title { font-weight: 600; font-size: 15px; }
+.auction-favorite-btn {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+  padding: 0;
+  flex: none;
+}
+.auction-favorite-btn svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linejoin: round;
+}
+.auction-favorite-btn:hover { color: var(--gold); background: rgba(201, 162, 74, 0.1); }
+.auction-favorite-btn.active { color: var(--gold); }
+.auction-favorite-btn.active svg { fill: currentColor; stroke: currentColor; }
 .auction-card-status-stack {
   display: flex;
   flex-direction: column;
