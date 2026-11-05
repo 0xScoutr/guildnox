@@ -7,6 +7,7 @@ import {
   listAuctions,
   migrateAuctions,
   placeBid,
+  presentMemberWallet,
   setAuctionFavorite,
   setAuctionPaused,
 } from "./auctions.js";
@@ -241,9 +242,9 @@ app.post("/auth/logout", (req, res) => {
   res.json({ ok: true });
 });
 
-app.get("/api/me", requireUser, (req, res) => {
-  res.json({ member: present(req.member) });
-});
+app.get("/api/me", requireUser, wrap(async (req, res) => {
+  res.json({ member: await presentMemberWallet(req.member) });
+}));
 
 app.get("/api/dashboard", requireUser, wrap(async (req, res) => {
   res.json(await dashboardData(req.member));
@@ -284,7 +285,10 @@ app.patch("/api/members/:discordId", requireUser, wrap(async (req, res) => {
   }
 
   const updated = await updateMember(target.discord_id, patch);
-  res.json({ member: present(updated) });
+  const member = updated.discord_id === actor.discord_id
+    ? await presentMemberWallet(updated)
+    : present(updated);
+  res.json({ member });
 }));
 
 app.get("/api/auctions", requireUser, wrap(async (req, res) => {

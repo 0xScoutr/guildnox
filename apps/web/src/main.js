@@ -273,7 +273,8 @@ function dashboardView(data) {
         characterStat("Classe", me.className || "—", true),
         characterStat("Level", number.format(me.level)),
         characterStat("Power", number.format(me.power)),
-        characterStat("DKP total", number.format(me.dkp)),
+        characterStat("DKP disponível", number.format(me.dkp)),
+        characterStat("DKP total", number.format(me.dkpTotal ?? me.dkp)),
         el("article", { className: "stat-card" }, [
           el("div", { className: "stat-label", text: "Leilões ao vivo" }),
           el("div", { className: "stat-value", text: number.format(data.stats.liveAuctions || 0) }),
@@ -432,6 +433,9 @@ function profile() {
       el("span", { text: `${number.format(member.dkp)} DKP` }),
       el("span", { text: `${number.format(member.power)} poder` }),
     ]),
+    member.reservedDkp > 0
+      ? el("p", { className: "muted profile-reserved", text: `${number.format(member.reservedDkp)} em lance` })
+      : null,
     el("button", { className: "btn", type: "button", onClick: () => openSheet(member) }, ["Editar personagem"]),
   ]);
 }
@@ -502,6 +506,8 @@ async function refreshMe() {
     const next = (await api("/api/me")).member;
     const changed = !state.me
       || state.me.dkp !== next.dkp
+      || state.me.dkpTotal !== next.dkpTotal
+      || state.me.reservedDkp !== next.reservedDkp
       || state.me.power !== next.power
       || state.me.level !== next.level
       || state.me.characterName !== next.characterName

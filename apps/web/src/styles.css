@@ -507,6 +507,7 @@ tr + tr td { border-top: 1px solid var(--line); }
   font-size: 13px;
   font-weight: 600;
 }
+.profile-reserved { margin: 0; font-size: 12px; }
 .profile-card .btn { margin-top: 10px; }
 
 dialog.sheet {

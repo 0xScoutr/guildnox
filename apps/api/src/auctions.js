@@ -1,4 +1,4 @@
-import { pool } from "./db.js";
+import { pool, present } from "./db.js";
 
 function fail(status, message, data = {}) {
   const error = new Error(message);
@@ -73,7 +73,7 @@ export async function migrateAuctions() {
   `);
 }
 
-async function reservedDkp(discordId, client = pool) {
+export async function reservedDkp(discordId, client = pool) {
   const { rows } = await client.query(
     `
     SELECT coalesce(sum(top.amount), 0)::int AS reserved
@@ -86,19 +86,31 @@ async function reservedDkp(discordId, client = pool) {
       LIMIT 1
     ) top ON true
     WHERE a.finalized_at IS NULL
-      AND a.paused_at IS NULL
       AND a.starts_at <= now()
-      AND a.expires_at > now()
       AND top.bidder_discord_id = $1
+      AND (
+        a.paused_at IS NOT NULL
+        OR a.expires_at > now()
+      )
     `,
     [discordId],
   );
   return rows[0].reserved;
 }
 
-async function availableDkp(member, client = pool) {
+export async function availableDkp(member, client = pool) {
   const reserved = await reservedDkp(member.discord_id, client);
   return Math.max(0, member.dkp - reserved);
+}
+
+export async function presentMemberWallet(member) {
+  const reserved = await reservedDkp(member.discord_id);
+  return {
+    ...present(member),
+    dkpTotal: member.dkp,
+    dkp: Math.max(0, member.dkp - reserved),
+    reservedDkp: reserved,
+  };
 }
 
 async function loadAuctionRow(id, client = pool) {
@@ -466,4 +478,3 @@ export async function placeBid(actor, id, amount) {
   return getAuction(id, actor);
 }
 
-export { availableDkp };

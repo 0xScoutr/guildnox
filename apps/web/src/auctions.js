@@ -336,6 +336,7 @@ export function openAuctionDetail(api, auctionId, me, onChanged, onMemberUpdate)
               method: "POST",
               body: JSON.stringify({ amount: Number(amount.value) }),
             });
+            await onMemberUpdate?.();
             await onChanged();
             await load();
           } catch (err) {
@@ -427,18 +428,23 @@ export function auctionsView({ api, me, onMemberUpdate }) {
   let tick = null;
   let booted = false;
   let knownStatus = new Map();
+  let knownLeading = new Map();
 
   async function refresh() {
     const data = await api("/api/auctions");
     const next = data.auctions;
-    let endedNow = false;
+    let walletChanged = false;
     for (const auction of next) {
       const previous = knownStatus.get(auction.id);
-      if (previous && previous !== "ended" && auction.status === "ended") endedNow = true;
+      const wasLeading = knownLeading.get(auction.id);
+      if (previous && previous !== "ended" && auction.status === "ended") walletChanged = true;
+      if (wasLeading === true && !auction.youAreHighestBidder) walletChanged = true;
+      if (wasLeading === false && auction.youAreHighestBidder) walletChanged = true;
       knownStatus.set(auction.id, auction.status);
+      knownLeading.set(auction.id, Boolean(auction.youAreHighestBidder));
     }
     auctions = next;
-    if (endedNow) await onMemberUpdate?.();
+    if (walletChanged) await onMemberUpdate?.();
     if (!booted) {
       booted = true;
       draw();
