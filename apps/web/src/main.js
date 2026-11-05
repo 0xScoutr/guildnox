@@ -82,6 +82,16 @@ function applyTheme() {
   try { localStorage.setItem("gc-theme", state.theme); } catch { /* ignore */ }
 }
 
+function syncThemeSwitch(root = document) {
+  root.querySelectorAll(".switch[aria-label='Tema']").forEach((node) => {
+    const light = state.theme === "light";
+    node.dataset.index = light ? "0" : "1";
+    node.querySelectorAll("[role='radio']").forEach((button, index) => {
+      button.setAttribute("aria-checked", (light ? index === 0 : index === 1) ? "true" : "false");
+    });
+  });
+}
+
 function themeSwitch() {
   const light = state.theme === "light";
   const thumb = el("span", { className: "switch-thumb" });
@@ -92,7 +102,7 @@ function themeSwitch() {
     onClick: () => {
       state.theme = id;
       applyTheme();
-      render();
+      syncThemeSwitch();
     },
   }, [icon(), el("span", { className: "switch-label", text: label })]);
   return el("div", {
@@ -330,26 +340,27 @@ function profile() {
     ["Poder", number.format(member.power)],
     ["DKP", number.format(member.dkp)],
   ].map(([label, value]) => el("div", {}, [el("span", { text: label }), el("strong", { text: value })]));
-  return el("aside", { className: "profile" }, [
-    el("div", { className: "profile-card" }, [
-      el("img", { className: "avatar", src: member.avatarUrl, alt: "" }),
-      el("h2", { text: displayName(member) }),
-      el("span", { className: "muted", text: `@${member.username}` }),
-      el("span", { className: "badge", text: ROLE[member.role] || member.role }),
-      el("div", { className: "facts" }, facts),
-      el("button", { className: "btn", type: "button", onClick: () => openSheet(member) }, ["Editar ficha"]),
-    ]),
+  return el("div", { className: "profile-card" }, [
+    el("img", { className: "avatar", src: member.avatarUrl, alt: "" }),
+    el("h2", { text: displayName(member) }),
+    el("span", { className: "muted", text: `@${member.username}` }),
+    el("span", { className: "badge", text: ROLE[member.role] || member.role }),
+    el("div", { className: "facts" }, facts),
+    el("button", { className: "btn", type: "button", onClick: () => openSheet(member) }, ["Editar ficha"]),
   ]);
 }
 
-function shell(active, content) {
-  document.title = PAGE_TITLES[active] || "Chapa";
+function ensureShell() {
+  let root = document.querySelector(".shell");
+  if (root) return root;
+
   const link = (id, label, icon) => el("button", {
     type: "button",
-    "aria-current": active === id ? "page" : null,
+    "data-nav": id,
     onClick: () => { location.hash = `#/${id}`; },
   }, [icon(), document.createTextNode(label)]);
-  document.getElementById("app").replaceChildren(el("div", { className: "shell" }, [
+
+  root = el("div", { className: "shell" }, [
     el("aside", { className: "sidebar" }, [
       brand(),
       el("nav", { className: "nav", "aria-label": "Seções" }, [
@@ -370,34 +381,68 @@ function shell(active, content) {
     ]),
     el("main", { className: "main" }, [
       el("div", { className: "topbar-tools" }, [themeSwitch()]),
-      content,
+      el("div", { className: "page-slot" }),
     ]),
-    profile(),
-  ]));
+    el("aside", { className: "profile profile-slot" }),
+  ]);
+  document.getElementById("app").replaceChildren(root);
+  return root;
 }
 
-async function render() {
+function setActiveNav(active) {
+  document.title = PAGE_TITLES[active] || "Chapa";
+  document.querySelectorAll(".nav [data-nav]").forEach((button) => {
+    if (button.dataset.nav === active) button.setAttribute("aria-current", "page");
+    else button.removeAttribute("aria-current");
+  });
+}
+
+function setPageContent(content) {
+  const slot = document.querySelector(".page-slot");
+  if (!slot) return;
+  slot.replaceChildren(content);
+}
+
+function refreshProfile() {
+  const slot = document.querySelector(".profile-slot");
+  if (!slot || !state.me) return;
+  slot.replaceChildren(profile());
+}
+
+async function showPage(active, loader) {
   const previous = document.querySelector(".auctions-page");
   previous?.cleanup?.();
 
+  ensureShell();
+  setActiveNav(active);
+  refreshProfile();
+  setPageContent(el("p", { className: "loading page-loading", text: "Carregando…" }));
+
+  const content = await loader();
+  if (route() !== active) return;
+  setPageContent(content);
+}
+
+async function render() {
   const page = route();
   if (page === "entrar") {
+    const previous = document.querySelector(".auctions-page");
+    previous?.cleanup?.();
     let status = { offline: true };
     try { status = await api("/api/status"); } catch { status = { offline: true }; }
     drawLogin(status);
     return;
   }
-  document.getElementById("app").replaceChildren(el("p", { className: "loading", text: "Abrindo o hall…" }));
+
   if (page === "membros") {
-    const data = await api("/api/members");
-    shell("membros", membersView(data.members));
+    await showPage("membros", async () => membersView((await api("/api/members")).members));
     return;
   }
   if (page === "leilao") {
-    shell("leilao", auctionsView({ api, me: state.me }));
+    await showPage("leilao", async () => auctionsView({ api, me: state.me }));
     return;
   }
-  shell("painel", dashboardView(await api("/api/dashboard")));
+  await showPage("painel", async () => dashboardView(await api("/api/dashboard")));
 }
 
 async function boot() {

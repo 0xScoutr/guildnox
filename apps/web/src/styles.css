@@ -221,6 +221,8 @@ h1 { font-family: Cinzel, Georgia, serif; font-weight: 500; font-size: 34px; mar
 .logout:hover, .nav button:hover { background: var(--surface); color: var(--text); }
 
 .main { padding: 28px; position: relative; }
+.page-slot { min-height: 40vh; }
+.page-loading { margin: 40px 0; color: var(--muted); }
 .page-head { margin-bottom: 22px; }
 .page-head h1 { font-size: 32px; }
 
