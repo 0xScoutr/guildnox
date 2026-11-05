@@ -497,12 +497,31 @@ function refreshProfile() {
   slot.replaceChildren(profile());
 }
 
+async function refreshMe() {
+  try {
+    const next = (await api("/api/me")).member;
+    const changed = !state.me
+      || state.me.dkp !== next.dkp
+      || state.me.power !== next.power
+      || state.me.level !== next.level
+      || state.me.characterName !== next.characterName
+      || state.me.className !== next.className
+      || state.me.role !== next.role;
+    state.me = next;
+    if (changed) refreshProfile();
+    return next;
+  } catch {
+    return state.me;
+  }
+}
+
 async function showPage(active, loader) {
   const previous = document.querySelector(".auctions-page");
   previous?.cleanup?.();
 
   ensureShell();
   setActiveNav(active);
+  await refreshMe();
   refreshProfile();
   setPageContent(el("p", { className: "loading page-loading", text: "Carregando…" }));
 
@@ -527,7 +546,11 @@ async function render() {
     return;
   }
   if (page === "leilao") {
-    await showPage("leilao", async () => auctionsView({ api, me: state.me }));
+    await showPage("leilao", async () => auctionsView({
+      api,
+      me: state.me,
+      onMemberUpdate: refreshMe,
+    }));
     return;
   }
   await showPage("painel", async () => dashboardView(await api("/api/dashboard")));

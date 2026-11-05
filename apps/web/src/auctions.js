@@ -260,7 +260,7 @@ export function openCreateAuction(api, onDone) {
   dialog.showModal();
 }
 
-export function openAuctionDetail(api, auctionId, me, onChanged) {
+export function openAuctionDetail(api, auctionId, me, onChanged, onMemberUpdate) {
   const body = el("div", { className: "auction-detail" }, [el("p", { className: "muted", text: "Carregando…" })]);
   const dialog = el("dialog", { className: "sheet auction-sheet" }, [
     el("div", { className: "sheet-head" }, [
@@ -279,9 +279,15 @@ export function openAuctionDetail(api, auctionId, me, onChanged) {
 
   let lastMin = null;
 
+  let lastStatus = null;
+
   async function load() {
     try {
       const detail = await api(`/api/auctions/${auctionId}`);
+      if (lastStatus && lastStatus !== "ended" && detail.status === "ended") {
+        await onMemberUpdate?.();
+      }
+      lastStatus = detail.status;
       render(detail);
     } catch (err) {
       body.replaceChildren(el("div", { className: "alert", text: err.message }));
@@ -412,7 +418,7 @@ export function openAuctionDetail(api, auctionId, me, onChanged) {
   load();
 }
 
-export function auctionsView({ api, me }) {
+export function auctionsView({ api, me, onMemberUpdate }) {
   const root = el("div", { className: "auctions-page" });
   let auctions = [];
   let filter = memory.filter;
@@ -420,23 +426,28 @@ export function auctionsView({ api, me }) {
   let timer = null;
   let tick = null;
   let booted = false;
+  let knownStatus = new Map();
 
   async function refresh() {
     const data = await api("/api/auctions");
-    auctions = data.auctions;
+    const next = data.auctions;
+    let endedNow = false;
+    for (const auction of next) {
+      const previous = knownStatus.get(auction.id);
+      if (previous && previous !== "ended" && auction.status === "ended") endedNow = true;
+      knownStatus.set(auction.id, auction.status);
+    }
+    auctions = next;
+    if (endedNow) await onMemberUpdate?.();
     if (!booted) {
       booted = true;
       draw();
     } else {
-      const active = root.querySelector(".filter-chip.active");
-      if (active) {
-        // atualiza só contagens dos chips e a grade
-        FILTERS.forEach((item) => {
-          const count = auctions.filter((auction) => matchesFilter(auction, item.id)).length;
-          const chip = [...root.querySelectorAll(".filter-chip")].find((node) => node.textContent.startsWith(item.label));
-          if (chip) chip.textContent = `${item.label}${count ? ` (${count})` : ""}`;
-        });
-      }
+      FILTERS.forEach((item) => {
+        const count = auctions.filter((auction) => matchesFilter(auction, item.id)).length;
+        const chip = [...root.querySelectorAll(".filter-chip")].find((node) => node.textContent.startsWith(item.label));
+        if (chip) chip.textContent = `${item.label}${count ? ` (${count})` : ""}`;
+      });
       drawResults();
       tickCountdowns(root);
     }
@@ -515,7 +526,7 @@ export function auctionsView({ api, me }) {
     box.replaceChildren(el("div", { className: "auction-grid" }, list.map((auction) => auctionCard(auction, {
       api,
       onChanged: refresh,
-      onOpen: (id) => openAuctionDetail(api, id, me, refresh),
+      onOpen: (id) => openAuctionDetail(api, id, me, refresh, onMemberUpdate),
     }))));
   }
 
