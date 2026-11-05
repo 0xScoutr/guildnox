@@ -1,38 +1,40 @@
 :root,
 [data-theme="dark"] {
   color-scheme: dark;
-  --bg: #0b0c11;
-  --bg-side: #07080c;
-  --surface: #12141c;
-  --surface-2: #191c27;
-  --line: #2a2e3c;
-  --text: #f3ecdf;
-  --muted: #a39b8c;
-  --faint: #7d776c;
-  --accent: #d2ab58;
-  --accent-2: #e6c57a;
-  --accent-ink: #1c1405;
-  --accent-soft: rgba(210, 171, 88, 0.14);
-  --danger: #e06b6f;
-  --shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+  --bg: #070406;
+  --bg-side: #050304;
+  --surface: #14090d;
+  --surface-2: #1c0d12;
+  --line: #3a1a22;
+  --text: #f4ebe6;
+  --muted: #b29a97;
+  --faint: #7f6664;
+  --accent: #c21f2e;
+  --accent-2: #e03442;
+  --accent-ink: #fff5f5;
+  --accent-soft: rgba(194, 31, 46, 0.16);
+  --gold: #c9a24a;
+  --danger: #ef6a72;
+  --shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
 }
 
 [data-theme="light"] {
   color-scheme: light;
-  --bg: #efe4d0;
-  --bg-side: #e7d9c0;
-  --surface: #f7f1e4;
-  --surface-2: #fffaf0;
-  --line: #d9cbb3;
-  --text: #2c2418;
-  --muted: #6d6254;
-  --faint: #8a7d6b;
-  --accent: #8d5a22;
-  --accent-2: #a56b2e;
-  --accent-ink: #fff8ee;
-  --accent-soft: rgba(141, 90, 34, 0.12);
+  --bg: #f4ebe4;
+  --bg-side: #eadfd6;
+  --surface: #fbf5f0;
+  --surface-2: #ffffff;
+  --line: #dcc8c2;
+  --text: #2a1418;
+  --muted: #6f5356;
+  --faint: #8a6e71;
+  --accent: #9f1524;
+  --accent-2: #b91c2c;
+  --accent-ink: #fff7f7;
+  --accent-soft: rgba(159, 21, 36, 0.1);
+  --gold: #8d6a2c;
   --danger: #a33b3f;
-  --shadow: 0 18px 50px rgba(80, 50, 20, 0.12);
+  --shadow: 0 18px 50px rgba(80, 20, 30, 0.12);
 }
 
 * { box-sizing: border-box; }
@@ -41,7 +43,8 @@ body {
   margin: 0;
   min-height: 100vh;
   background:
-    radial-gradient(900px 420px at 50% -10%, var(--accent-soft), transparent 60%),
+    radial-gradient(900px 480px at 50% -12%, rgba(194, 31, 46, 0.22), transparent 58%),
+    radial-gradient(700px 360px at 85% 10%, rgba(201, 162, 74, 0.08), transparent 50%),
     var(--bg);
   color: var(--text);
   font-family: Outfit, "Segoe UI", sans-serif;
@@ -106,24 +109,29 @@ a { color: inherit; }
 .auth-card { width: min(380px, 100%); text-align: center; }
 
 .medallion {
-  width: 148px;
-  height: 148px;
-  margin: 0 auto 22px;
+  width: 168px;
+  height: 168px;
+  margin: 0 auto 18px;
   position: relative;
   display: grid;
   place-items: center;
+  filter: drop-shadow(0 12px 28px rgba(194, 31, 46, 0.28));
 }
 
-.medallion svg { width: 100%; height: 100%; }
-.medallion circle { fill: none; stroke: var(--accent); }
-.medallion text { fill: var(--accent); font-size: 13px; letter-spacing: 3px; font-family: Cinzel, Georgia, serif; }
-.medallion .spin { transform-box: fill-box; transform-origin: center; animation: spin 36s linear infinite; }
-.brand-lockup .medallion text { display: none; }
-.medallion-mark { position: absolute; font-family: Cinzel, Georgia, serif; font-size: 28px; color: var(--accent); }
+.medallion img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
 
 .brand-lockup { display: flex; align-items: center; gap: 12px; }
-.brand-lockup .medallion { width: 46px; height: 46px; margin: 0; }
-.brand-lockup .medallion-mark { font-size: 13px; }
+.brand-lockup .medallion {
+  width: 48px;
+  height: 48px;
+  margin: 0;
+  filter: drop-shadow(0 4px 10px rgba(194, 31, 46, 0.25));
+}
 .brand-name { font-family: Cinzel, Georgia, serif; font-size: 15px; margin: 0; }
 .brand-game { margin: 2px 0 0; color: var(--muted); font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; }
 
@@ -208,7 +216,7 @@ h1 { font-family: Cinzel, Georgia, serif; font-weight: 500; font-size: 34px; mar
   padding: 10px 12px;
   color: var(--muted);
 }
-.nav button[aria-current="page"] { background: var(--accent-soft); color: var(--accent); }
+.nav button[aria-current="page"] { background: var(--accent-soft); color: var(--accent-2); }
 .logout { margin-top: auto; color: var(--muted); }
 .logout:hover, .nav button:hover { background: var(--surface); color: var(--text); }
 
@@ -259,7 +267,7 @@ h1 { font-family: Cinzel, Georgia, serif; font-weight: 500; font-size: 34px; mar
 .person div { min-width: 0; }
 .person strong, .person span { display: block; }
 .person span, .muted { color: var(--muted); }
-.person em { margin-left: auto; font-style: normal; color: var(--accent); }
+.person em { margin-left: auto; font-style: normal; color: var(--gold); }
 
 .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
 table { width: 100%; border-collapse: collapse; }
@@ -274,7 +282,8 @@ tr + tr td { border-top: 1px solid var(--line); }
   border-radius: 999px;
   padding: 3px 8px;
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--accent-2);
+  border: 1px solid rgba(201, 162, 74, 0.28);
   font-size: 12px;
 }
 
@@ -327,8 +336,5 @@ input, select {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .medallion .spin { animation: none; }
   .switch-thumb { transition: none; }
 }
-
-@keyframes spin { to { transform: rotate(360deg); } }

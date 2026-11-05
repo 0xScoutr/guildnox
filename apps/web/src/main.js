@@ -100,16 +100,9 @@ function themeSwitch() {
 }
 
 function medallion() {
-  const wrap = el("div", { className: "medallion" });
-  wrap.innerHTML = `
-    <svg class="spin" viewBox="0 0 200 200" aria-hidden="true">
-      <defs><path id="gc-ring" d="M100,100 m-78,0 a78,78 0 1,1 156,0 a78,78 0 1,1 -156,0"></path></defs>
-      <circle cx="100" cy="100" r="96" stroke-width="1"></circle>
-      <circle cx="100" cy="100" r="64" stroke-width="1"></circle>
-      <text><textPath href="#gc-ring" textLength="490" lengthAdjust="spacing">GUILDCHAPA · VAMPIR · GUILDCHAPA · VAMPIR · </textPath></text>
-    </svg>`;
-  wrap.append(el("span", { className: "medallion-mark", text: "GC" }));
-  return wrap;
+  return el("div", { className: "medallion" }, [
+    el("img", { src: "/logo.jpg", alt: "Chapa" }),
+  ]);
 }
 
 async function api(path, options = {}) {
@@ -137,14 +130,14 @@ function brand() {
   return el("div", { className: "brand-lockup" }, [
     medallion(),
     el("div", {}, [
-      el("p", { className: "brand-name", text: "guildchapa" }),
+      el("p", { className: "brand-name", text: "Chapa" }),
       el("p", { className: "brand-game", text: "Vampir" }),
     ]),
   ]);
 }
 
 function drawLogin(status) {
-  document.title = "Entrar — guildchapa";
+  document.title = "Entrar — Chapa";
   const offline = status?.offline;
   const ready = status?.discord;
   const message = state.error ? (ERRORS[state.error] || "Não foi possível entrar. Tente novamente.") : "";
@@ -156,8 +149,8 @@ function drawLogin(status) {
     el("div", { className: "auth-tools" }, [themeSwitch()]),
     el("div", { className: "auth-card" }, [
       medallion(),
-      el("p", { className: "kicker", text: "Hall da guilda" }),
-      el("h1", { text: "guildchapa" }),
+      el("p", { className: "kicker", text: "guildchapa" }),
+      el("h1", { text: "Chapa" }),
       el("p", { className: "lede", text: "Vampir" }),
       el("div", { className: "card" }, [
         message ? el("div", { className: "alert", text: message }) : null,
@@ -340,7 +333,7 @@ function profile() {
 }
 
 function shell(active, content) {
-  document.title = active === "membros" ? "Membros — guildchapa" : "Painel — guildchapa";
+  document.title = active === "membros" ? "Membros — Chapa" : "Painel — Chapa";
   const link = (id, label, icon) => el("button", {
     type: "button",
     "aria-current": active === id ? "page" : null,
