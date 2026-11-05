@@ -151,12 +151,18 @@ function field(label, control) {
   return el("label", { className: "auction-field" }, [label, control]);
 }
 
+function localDateTimeValue(date = new Date()) {
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 export function openCreateAuction(api, onDone) {
   const error = el("div", { className: "alert", hidden: "hidden" });
   const itemName = el("input", { maxlength: "80", required: "required", placeholder: "Nome do item" });
   const description = el("input", { maxlength: "500", placeholder: "Descrição (opcional)" });
   const startingBid = el("input", { type: "number", min: "1", value: "10" });
   const quantity = el("input", { type: "number", min: "1", value: "1" });
+  const startsAt = el("input", { type: "datetime-local", required: "required", value: localDateTimeValue() });
   const durationMinutes = el("input", { type: "number", min: "1", value: "30" });
   const resetMinutes = el("input", { type: "number", min: "0", max: "120", value: "2" });
   const save = el("button", { className: "btn btn-small", type: "submit" }, ["Criar leilão"]);
@@ -168,6 +174,8 @@ export function openCreateAuction(api, onDone) {
     field("Descrição", description),
     field("Lance inicial (DKP)", startingBid),
     field("Quantidade", quantity),
+    field("Começa em", startsAt),
+    el("p", { className: "muted auction-hint", text: "Ex.: hoje às 22:00. Se deixar a hora atual, começa na hora." }),
     field("Duração (minutos)", durationMinutes),
     field("Extensão anti-snipe (minutos)", resetMinutes),
     el("div", { className: "sheet-actions" }, [
@@ -180,6 +188,13 @@ export function openCreateAuction(api, onDone) {
     event.preventDefault();
     error.hidden = true;
     save.disabled = true;
+    const start = new Date(startsAt.value);
+    if (Number.isNaN(start.getTime())) {
+      error.hidden = false;
+      error.textContent = "Informe a data e o horário de início.";
+      save.disabled = false;
+      return;
+    }
     try {
       await api("/api/auctions", {
         method: "POST",
@@ -188,6 +203,7 @@ export function openCreateAuction(api, onDone) {
           description: description.value,
           startingBid: Number(startingBid.value),
           quantity: Number(quantity.value),
+          startsAt: start.toISOString(),
           durationMinutes: Number(durationMinutes.value),
           resetMinutes: Number(resetMinutes.value),
         }),

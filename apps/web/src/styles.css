@@ -485,6 +485,7 @@ input, select {
 .auction-sheet { width: min(520px, calc(100vw - 32px)); }
 .auction-sheet .auction-detail { padding: 16px 20px 20px; display: grid; gap: 14px; }
 .auction-field { display: grid; gap: 6px; color: var(--muted); font-size: 13px; }
+.auction-hint { margin: -4px 0 0; font-size: 12px; }
 
 .auctions-head {
   display: flex;
