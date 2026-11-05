@@ -199,30 +199,102 @@ function personRow(member) {
   ]);
 }
 
+function formatShortWhen(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+function characterStat(label, value, display = false) {
+  return el("article", { className: "stat-card" }, [
+    el("div", { className: "stat-label", text: label }),
+    el("div", { className: display ? "stat-value display" : "stat-value", text: value }),
+  ]);
+}
+
 function dashboardView(data) {
-  const cards = [
-    ["Membros", data.stats.total],
-    ["DKP da guilda", data.stats.dkp],
-    ["Poder médio", data.stats.powerAvg],
-    ["Oficiais", data.stats.officers],
-  ].map(([label, value]) => el("article", { className: "stat" }, [
-    el("span", { text: label }),
-    el("strong", { text: number.format(value) }),
-  ]));
-  return el("div", {}, [
-    el("header", { className: "page-head" }, [
-      el("p", { className: "kicker", text: "Vampir" }),
-      el("h1", { text: "Painel" }),
+  const me = state.me;
+  const history = data.auctionHistory || [];
+  const historyRows = history.length
+    ? history.map((item) => {
+      const won = item.kind === "won";
+      return el("div", { className: `history-row ${won ? "loss" : ""}` }, [
+        el("span", { className: `history-mark ${won ? "gavel" : "check"}`, "aria-hidden": "true" }),
+        el("div", { className: "history-body" }, [
+          el("strong", { text: won ? `Leilão vencido: ${item.itemName}` : `Lance em: ${item.itemName}` }),
+          el("span", { text: formatShortWhen(item.at) }),
+        ]),
+        el("em", {
+          className: won ? "dkp-loss" : "dkp-gain",
+          text: won ? `−${number.format(item.amount)} DKP` : `${number.format(item.amount)} DKP`,
+        }),
+      ]);
+    })
+    : [el("p", { className: "muted", text: "Você ainda não tem histórico de leilão." })];
+
+  return el("div", { className: "dashboard" }, [
+    el("header", { className: "page-header" }, [
+      el("div", {}, [
+        el("h2", { text: `Bem-vindo(a), ${displayName(me)}` }),
+        el("p", { className: "page-sub" }, [
+          document.createTextNode("Visão geral da sua conta na guild "),
+          el("span", { className: "badge", text: "Chapa" }),
+        ]),
+      ]),
     ]),
-    el("section", { className: "stats" }, cards),
+    el("div", { className: "rune-rule", "aria-hidden": "true" }),
+
+    el("section", { className: "section-block" }, [
+      el("div", { className: "section-head" }, [
+        el("h3", { text: "Personagem" }),
+        el("button", {
+          className: "btn btn-ghost btn-small",
+          type: "button",
+          onClick: () => openSheet(me),
+        }, ["Editar personagem"]),
+      ]),
+      el("div", { className: "stat-grid" }, [
+        characterStat("Nick", displayName(me), true),
+        characterStat("Classe", me.className || "—", true),
+        characterStat("Level", number.format(me.level)),
+        characterStat("Power", number.format(me.power)),
+        characterStat("DKP total", number.format(me.dkp)),
+        el("article", { className: "stat-card" }, [
+          el("div", { className: "stat-label", text: "Leilões ao vivo" }),
+          el("div", { className: "stat-value", text: number.format(data.stats.liveAuctions || 0) }),
+          el("button", {
+            className: "linkish",
+            type: "button",
+            onClick: () => { location.hash = "#/leilao"; },
+          }, ["Abrir leilão"]),
+        ]),
+      ]),
+    ]),
+
+    el("section", { className: "panel history-panel" }, [
+      el("div", { className: "section-head" }, [
+        el("h3", { text: "Histórico de leilão" }),
+        el("span", { className: "muted", text: `${history.filter((item) => item.kind === "won").length} ganhos` }),
+      ]),
+      el("div", { className: "history-list" }, historyRows),
+    ]),
+
     el("section", { className: "split" }, [
       el("article", { className: "panel" }, [
-        el("h2", { text: "Maiores poderes" }),
+        el("h3", { text: "Maiores poderes" }),
         ...data.top.map(personRow),
       ]),
       el("article", { className: "panel" }, [
-        el("h2", { text: "Entraram por último" }),
-        ...data.recent.map(personRow),
+        el("h3", { text: "Resumo da guilda" }),
+        el("div", { className: "guild-summary" }, [
+          ["Membros", data.stats.total],
+          ["Oficiais", data.stats.officers],
+          ["DKP da guilda", data.stats.dkp],
+          ["Poder médio", data.stats.powerAvg],
+        ].map(([label, value]) => el("div", {}, [
+          el("span", { text: label }),
+          el("strong", { text: number.format(value) }),
+        ]))),
       ]),
     ]),
   ]);
@@ -334,19 +406,18 @@ function openSheet(member) {
 
 function profile() {
   const member = state.me;
-  const facts = [
-    ["Classe", member.className || "—"],
-    ["Nível", number.format(member.level)],
-    ["Poder", number.format(member.power)],
-    ["DKP", number.format(member.dkp)],
-  ].map(([label, value]) => el("div", {}, [el("span", { text: label }), el("strong", { text: value })]));
   return el("div", { className: "profile-card" }, [
-    el("img", { className: "avatar", src: member.avatarUrl, alt: "" }),
+    el("div", { className: "profile-avatar-wrap" }, [
+      el("img", { className: "avatar", src: member.avatarUrl, alt: "" }),
+      el("span", { className: "level-pill", text: String(member.level) }),
+    ]),
     el("h2", { text: displayName(member) }),
-    el("span", { className: "muted", text: `@${member.username}` }),
-    el("span", { className: "badge", text: ROLE[member.role] || member.role }),
-    el("div", { className: "facts" }, facts),
-    el("button", { className: "btn", type: "button", onClick: () => openSheet(member) }, ["Editar ficha"]),
+    el("span", { className: "badge", text: member.className || ROLE[member.role] || member.role }),
+    el("div", { className: "profile-metrics" }, [
+      el("span", { text: `${number.format(member.dkp)} DKP` }),
+      el("span", { text: `${number.format(member.power)} poder` }),
+    ]),
+    el("button", { className: "btn", type: "button", onClick: () => openSheet(member) }, ["Editar personagem"]),
   ]);
 }
 
@@ -368,19 +439,21 @@ function ensureShell() {
         link("leilao", "Leilão", icons.gavel),
         link("membros", "Membros", icons.users),
       ]),
-      el("button", {
-        className: "logout",
-        type: "button",
-        onClick: async () => {
-          await api("/auth/logout", { method: "POST" }).catch(() => {});
-          state.me = null;
-          location.hash = "";
-          await render();
-        },
-      }, [icons.out(), document.createTextNode("Sair")]),
+      el("div", { className: "sidebar-foot" }, [
+        themeSwitch(),
+        el("button", {
+          className: "logout",
+          type: "button",
+          onClick: async () => {
+            await api("/auth/logout", { method: "POST" }).catch(() => {});
+            state.me = null;
+            location.hash = "";
+            await render();
+          },
+        }, [icons.out(), document.createTextNode("Sair")]),
+      ]),
     ]),
     el("main", { className: "main" }, [
-      el("div", { className: "topbar-tools" }, [themeSwitch()]),
       el("div", { className: "page-slot" }),
     ]),
     el("aside", { className: "profile profile-slot" }),

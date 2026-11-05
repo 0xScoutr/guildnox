@@ -120,7 +120,7 @@ export async function listMembers() {
   return rows;
 }
 
-export async function dashboardData() {
+export async function dashboardData(viewer = null) {
   const stats = await pool.query(`
     SELECT
       count(*)::int AS total,
@@ -140,15 +140,73 @@ export async function dashboardData() {
     LIMIT 5
   `);
   const row = stats.rows[0];
+
+  let auctionHistory = [];
+  let liveAuctions = 0;
+  try {
+    const live = await pool.query(`
+      SELECT count(*)::int AS n
+      FROM auctions
+      WHERE finalized_at IS NULL
+        AND paused_at IS NULL
+        AND starts_at <= now()
+        AND expires_at > now()
+    `);
+    liveAuctions = live.rows[0].n;
+
+    if (viewer?.discord_id) {
+      const history = await pool.query(
+        `
+        SELECT
+          a.id,
+          a.item_name AS "itemName",
+          a.quantity,
+          a.finalized_at AS "finalizedAt",
+          top.amount,
+          CASE
+            WHEN a.winner_discord_id = $1 THEN 'won'
+            ELSE 'bid'
+          END AS kind
+        FROM auctions a
+        JOIN LATERAL (
+          SELECT b.amount
+          FROM auction_bids b
+          WHERE b.auction_id = a.id
+            AND b.bidder_discord_id = $1
+          ORDER BY b.amount DESC, b.created_at ASC
+          LIMIT 1
+        ) top ON true
+        WHERE a.finalized_at IS NOT NULL
+        ORDER BY a.finalized_at DESC
+        LIMIT 12
+        `,
+        [viewer.discord_id],
+      );
+      auctionHistory = history.rows.map((item) => ({
+        id: Number(item.id),
+        itemName: item.itemName,
+        quantity: item.quantity,
+        amount: item.amount,
+        kind: item.kind,
+        at: item.finalizedAt,
+      }));
+    }
+  } catch {
+    auctionHistory = [];
+    liveAuctions = 0;
+  }
+
   return {
     stats: {
       total: row.total,
       officers: row.officers,
       dkp: Number(row.dkp),
       powerAvg: row.power_avg,
+      liveAuctions,
     },
     top: top.rows.map(present),
     recent: recent.rows.map(present),
+    auctionHistory,
   };
 }
 

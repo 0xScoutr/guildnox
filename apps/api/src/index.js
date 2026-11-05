@@ -244,8 +244,8 @@ app.get("/api/me", requireUser, (req, res) => {
   res.json({ member: present(req.member) });
 });
 
-app.get("/api/dashboard", requireUser, wrap(async (_req, res) => {
-  res.json(await dashboardData());
+app.get("/api/dashboard", requireUser, wrap(async (req, res) => {
+  res.json(await dashboardData(req.member));
 }));
 
 app.get("/api/members", requireUser, wrap(async (_req, res) => {
