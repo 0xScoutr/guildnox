@@ -1,4 +1,5 @@
 import { jobPool, pool } from "./db.js";
+import { sendActivityDiscord } from "./discord-notify.js";
 import { pushEnabled, sendActivityPush } from "./push.js";
 
 /**
@@ -18,9 +19,11 @@ const TICK_MS = 30_000;
 const SOON_MINUTES = 5;
 const REMINDER_MINUTES = 10;
 
-// Cada canal recebe (kind, activity). O push é o primeiro; outros canais entram aqui.
+// Cada canal recebe (kind, activity). O Discord fica sempre ligado porque o
+// webhook é configurado por guilda, a qualquer hora; sem webhook ele não envia nada.
 const CHANNELS = [
   { name: "push", enabled: pushEnabled, send: sendActivityPush },
+  { name: "discord", enabled: () => true, send: sendActivityDiscord },
 ];
 
 function anyChannel() {
