@@ -9,6 +9,7 @@ import {
   watchActivityOpenings,
 } from "./activity-alert.js";
 import { t } from "./i18n.js";
+import { disablePush, enablePush, getPushState, pushStateNow, sendTestPush } from "./push.js";
 import { showToast } from "./toast.js";
 
 const number = new Intl.NumberFormat("pt-BR");
@@ -269,6 +270,92 @@ function soundControls() {
   }
   window.addEventListener("gc:som-atividade", onPref);
   paint();
+  return wrap;
+}
+
+const PUSH_REASON_TEXT = {
+  denied: "push.denied",
+  dismissed: "push.dismissed",
+  unconfigured: "push.unconfigured",
+  error: "push.error",
+};
+
+/** Liga/desliga o push deste aparelho (avisos com o site fechado). */
+function pushControls() {
+  const wrap = el("div", { className: "push-linha", id: "push-atividade", title: t("push.tip") });
+  let busy = false;
+  let note = "";
+
+  function button(label, onClick, className = "btn btn-ghost btn-small") {
+    return el("button", { type: "button", className, disabled: busy ? "disabled" : undefined, onClick }, [label]);
+  }
+
+  async function run(task) {
+    if (busy) return;
+    busy = true;
+    note = "";
+    paint();
+    try {
+      await task();
+    } finally {
+      busy = false;
+      paint();
+    }
+  }
+
+  function paint(state = pushStateNow()) {
+    if (state === "loading" || state === "unsupported" || state === "unconfigured") {
+      wrap.hidden = true;
+      wrap.replaceChildren();
+      return;
+    }
+    wrap.hidden = false;
+    const children = [el("span", { className: "push-label", text: t("push.label") })];
+    if (state === "subscribed") {
+      children.push(
+        el("span", { className: "push-status is-on", text: t("push.on") }),
+        button(t("push.test"), () => run(async () => {
+          try {
+            await sendTestPush();
+            showToast(t("push.testSent"));
+          } catch (err) {
+            showToast(err.message || t("push.error"), { tone: "error" });
+          }
+        })),
+        button(t("push.disable"), () => run(async () => {
+          try {
+            await disablePush();
+            showToast(t("push.disabled"));
+          } catch (err) {
+            showToast(err.message || t("push.error"), { tone: "error" });
+          }
+        })),
+      );
+    } else if (state === "idle") {
+      children.push(button(t("push.enable"), () => run(async () => {
+        const result = await enablePush();
+        if (result.ok) showToast(t("push.enabled"));
+        else note = t(PUSH_REASON_TEXT[result.reason] || "push.error");
+      }), "btn btn-small"));
+    } else if (state === "denied") {
+      children.push(el("span", { className: "push-status is-warn", text: t("push.denied") }));
+    } else if (state === "ios-install") {
+      children.push(el("span", { className: "push-status", text: t("push.iosHint") }));
+    }
+    if (note) children.push(el("p", { className: "push-note", text: note }));
+    wrap.replaceChildren(...children);
+  }
+
+  function onState() {
+    if (!wrap.isConnected) {
+      window.removeEventListener("gc:push-state", onState);
+      return;
+    }
+    paint();
+  }
+  window.addEventListener("gc:push-state", onState);
+  paint();
+  getPushState().then(() => paint()).catch(() => {});
   return wrap;
 }
 
@@ -549,6 +636,7 @@ export function activitiesView({ api, me, onMemberUpdate }) {
         searchInput,
         el("div", { className: "filter-chip-row" }, chips),
         soundControls(),
+        pushControls(),
       ]),
       el("div", { className: "activities-results" }),
     );
@@ -627,8 +715,13 @@ export function activitiesView({ api, me, onMemberUpdate }) {
     refresh().catch(() => {});
   }, 10000);
 
+  // Check-in feito pelo botão da notificação: atualiza na hora.
+  const onCheckinFromNotification = () => { refresh().catch(() => {}); };
+  window.addEventListener("gc:activity-checkin", onCheckinFromNotification);
+
   root.cleanup = () => {
     clearInterval(timer);
+    window.removeEventListener("gc:activity-checkin", onCheckinFromNotification);
   };
 
   return root;

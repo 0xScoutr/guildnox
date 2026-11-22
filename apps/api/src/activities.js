@@ -1,5 +1,6 @@
 import { applyDkpDelta } from "./dkp-ledger.js";
 import { pool, present } from "./db.js";
+import { kickActivityNotify, notifyActivityReopened } from "./activity-notify.js";
 
 function fail(status, message, data = {}) {
   const error = new Error(message);
@@ -183,6 +184,8 @@ export async function createActivity(actor, body, guildId) {
     `,
     [name, dkpValue, durationMinutes, startsAt.toISOString(), expiresAt.toISOString(), actor.discord_id, guildId, soundData],
   );
+  // Atividade que abre na hora (ou em menos de 5 min) já sai avisada, sem esperar o próximo ciclo.
+  kickActivityNotify();
   return presentActivity(rows[0], actor.discord_id);
 }
 
@@ -269,11 +272,15 @@ export async function reopenActivity(actor, id, body = {}, guildId = null) {
     }
 
     const expiresAt = new Date(Date.now() + extraMinutes * 60 * 1000);
+    // A reabertura conta como nova abertura para os avisos: o lembrete de quem
+    // não fez check-in volta a valer, contado a partir de agora.
     const { rows } = await client.query(
       `
       UPDATE activities
       SET finalized_at = NULL,
-          expires_at = $2
+          expires_at = $2,
+          notify_open_sent_at = now(),
+          notify_reminder_sent_at = NULL
       WHERE id = $1
       RETURNING *
       `,
@@ -288,6 +295,7 @@ export async function reopenActivity(actor, id, body = {}, guildId = null) {
     client.release();
   }
 
+  notifyActivityReopened(updated);
   return presentActivity(updated, actor.discord_id);
 }
 

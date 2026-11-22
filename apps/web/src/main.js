@@ -8,10 +8,12 @@ import {
 import { auctionImage, auctionsView } from "./auctions.js";
 import { getLang, LANGS, setLang, t } from "./i18n.js";
 import { rankingView } from "./ranking.js";
+import { configurePushClient, detachPushOnLogout, syncPushSubscription } from "./push.js";
 import { registerServiceWorker } from "./service-worker.js";
 
 const API = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
 configureActivityAlert(API);
+configurePushClient(api);
 const number = new Intl.NumberFormat("pt-BR");
 const CLASSES = [
   "Carnage",
@@ -368,6 +370,7 @@ function drawPendingGuild() {
           type: "button",
           onClick: async () => {
             clearInterval(timer);
+            await detachPushOnLogout();
             await api("/auth/logout", { method: "POST" }).catch(() => {});
             state.me = null;
             stopActivityOpenPoll();
@@ -497,6 +500,7 @@ function drawChooseGuild() {
           className: "btn btn-ghost",
           type: "button",
           onClick: async () => {
+            await detachPushOnLogout();
             await api("/auth/logout", { method: "POST" }).catch(() => {});
             state.me = null;
             stopActivityOpenPoll();
@@ -1699,6 +1703,7 @@ function ensureShell() {
           className: "logout",
           type: "button",
           onClick: async () => {
+            await detachPushOnLogout();
             await api("/auth/logout", { method: "POST" }).catch(() => {});
             state.me = null;
             state.guilds = [];
@@ -1862,7 +1867,7 @@ async function render() {
 
 async function boot() {
   applyTheme();
-  registerServiceWorker();
+  registerServiceWorker(API);
   const params = new URLSearchParams(location.search);
   state.error = params.get("error");
   if (state.error) history.replaceState({}, "", location.pathname);
@@ -1882,6 +1887,7 @@ async function boot() {
   });
   await render();
   syncActivitySoundPoll();
+  if (state.me && !needsGuild()) syncPushSubscription();
 }
 
 boot().catch((error) => {

@@ -58,6 +58,15 @@ import {
   selectGuild,
   setGuildActive,
 } from "./guilds.js";
+import {
+  configurePush,
+  migratePush,
+  pushConfig,
+  removeSubscription,
+  saveSubscription,
+  sendTestPush,
+} from "./push.js";
+import { migrateActivityNotify, startActivityNotify } from "./activity-notify.js";
 import { getRanking } from "./ranking.js";
 import {
   acceptPilotInvite,
@@ -681,6 +690,23 @@ app.delete("/api/activities/:id", requireUser, requireGuild, wrap(async (req, re
   res.json(await deleteActivity(req.member, id, req.guildId));
 }));
 
+// Push: a inscrição é do aparelho de quem está logado (não do personagem pilotado).
+app.get("/api/push/config", requireUser, (_req, res) => {
+  res.json(pushConfig());
+});
+
+app.post("/api/push/subscriptions", requireUser, wrap(async (req, res) => {
+  res.status(201).json(await saveSubscription(req.member, req.body || {}, req.get("user-agent")));
+}));
+
+app.delete("/api/push/subscriptions", requireUser, wrap(async (req, res) => {
+  res.json(await removeSubscription(req.member, req.body?.endpoint));
+}));
+
+app.post("/api/push/test", requireUser, wrap(async (req, res) => {
+  res.json(await sendTestPush(req.member));
+}));
+
 app.get("/api/ranking", requireUser, requireGuild, wrap(async (req, res) => {
   res.json(await getRanking(req.query || {}, req.guildId));
 }));
@@ -709,6 +735,10 @@ await migrateActivities();
 await migrateGuilds();
 await migratePilots();
 await migrateDkpLedger();
+await migratePush();
+await migrateActivityNotify();
+configurePush();
 app.listen(PORT, () => {
   console.log(`guildnox api em :${PORT}`);
+  startActivityNotify();
 });
