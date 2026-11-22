@@ -734,6 +734,122 @@ function openCreateGuild(onDone) {
   dialog.showModal();
 }
 
+function mentionChoice(mention) {
+  if (mention === "everyone" || mention === "here") return mention;
+  if (mention?.startsWith("role:")) return "role";
+  return "none";
+}
+
+/** Webhook do Discord da guilda: onde e quem marcar nos avisos de boss. */
+function openGuildDiscord(guild, onDone) {
+  const status = guild.discord || { configured: false, mention: null };
+  const error = el("div", { className: "alert", hidden: "hidden" });
+  const webhook = el("input", {
+    type: "url",
+    autocomplete: "off",
+    placeholder: status.configured ? t("discord.webhookKeep") : "https://discord.com/api/webhooks/...",
+  });
+  const choice = el("select", {}, [
+    el("option", { value: "role", text: t("discord.mentionRole") }),
+    el("option", { value: "everyone", text: "@everyone" }),
+    el("option", { value: "here", text: "@here" }),
+    el("option", { value: "none", text: t("discord.mentionNone") }),
+  ]);
+  choice.value = mentionChoice(status.mention);
+  if (!status.mention && !status.configured) choice.value = "role";
+  const roleId = el("input", {
+    inputmode: "numeric",
+    placeholder: "123456789012345678",
+    value: status.mention?.startsWith("role:") ? status.mention.slice(5) : "",
+  });
+  const roleField = el("label", { className: "auction-field" }, [t("discord.roleId"), roleId]);
+  const syncRole = () => { roleField.hidden = choice.value !== "role"; };
+  choice.addEventListener("change", syncRole);
+  syncRole();
+
+  const save = el("button", { className: "btn btn-small", type: "submit" }, [t("discord.save")]);
+  const test = el("button", {
+    className: "btn btn-ghost btn-small",
+    type: "button",
+    disabled: status.configured ? undefined : "disabled",
+    onClick: async () => {
+      error.hidden = true;
+      test.disabled = true;
+      try {
+        await api(`/api/guilds/${guild.id}/discord/test`, { method: "POST", body: "{}" });
+        alert(t("discord.testSent"));
+      } catch (err) {
+        error.hidden = false;
+        error.textContent = err.message;
+      } finally {
+        test.disabled = false;
+      }
+    },
+  }, [t("discord.test")]);
+  const remove = el("button", {
+    className: "btn btn-ghost btn-small btn-danger",
+    type: "button",
+    disabled: status.configured ? undefined : "disabled",
+    onClick: async () => {
+      if (!confirm(t("discord.removeConfirm", { name: guild.name }))) return;
+      try {
+        await api(`/api/guilds/${guild.id}/discord`, {
+          method: "PATCH",
+          body: JSON.stringify({ webhookUrl: null }),
+        });
+        dialog.close();
+        await onDone?.();
+      } catch (err) {
+        error.hidden = false;
+        error.textContent = err.message;
+      }
+    },
+  }, [t("discord.remove")]);
+
+  const form = el("form", {}, [
+    el("h2", { text: t("discord.title", { name: guild.name }) }),
+    el("p", { className: "muted auction-hint", text: t("discord.lede") }),
+    error,
+    el("label", { className: "auction-field" }, [t("discord.webhook"), webhook]),
+    el("p", { className: "muted auction-hint", text: t("discord.webhookHelp") }),
+    el("label", { className: "auction-field" }, [t("discord.mention"), choice]),
+    roleField,
+    el("p", { className: "muted auction-hint", text: t("discord.reminderNote") }),
+    el("div", { className: "sheet-actions" }, [remove, test, save]),
+  ]);
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    error.hidden = true;
+    const body = { mention: choice.value === "role" ? roleId.value.trim() : choice.value };
+    if (choice.value === "role" && !body.mention) {
+      error.hidden = false;
+      error.textContent = t("discord.roleMissing");
+      return;
+    }
+    const url = webhook.value.trim();
+    if (url) body.webhookUrl = url;
+    else if (!status.configured) {
+      error.hidden = false;
+      error.textContent = t("discord.webhookMissing");
+      return;
+    }
+    save.disabled = true;
+    try {
+      await api(`/api/guilds/${guild.id}/discord`, { method: "PATCH", body: JSON.stringify(body) });
+      dialog.close();
+      await onDone?.();
+    } catch (err) {
+      error.hidden = false;
+      error.textContent = err.message;
+      save.disabled = false;
+    }
+  });
+  const dialog = el("dialog", { className: "sheet" }, [form]);
+  document.body.append(dialog);
+  dialog.addEventListener("close", () => dialog.remove());
+  dialog.showModal();
+}
+
 function openManageGuilds(onDone) {
   const body = el("div", { className: "guild-manage" }, [
     el("p", { className: "muted", text: t("loading") }),
@@ -767,6 +883,12 @@ function openManageGuilds(onDone) {
             }),
           ]),
           el("div", { className: "guild-manage-actions" }, [
+            el("button", {
+              className: "btn btn-ghost btn-small",
+              type: "button",
+              title: guild.discord?.configured ? t("discord.on") : t("discord.off"),
+              onClick: () => openGuildDiscord(guild, load),
+            }, [guild.discord?.configured ? t("discord.buttonOn") : t("discord.button")]),
             el("button", {
               className: "btn btn-ghost btn-small",
               type: "button",
