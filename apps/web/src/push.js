@@ -18,10 +18,14 @@ import { getLang } from "./i18n.js";
 import { activeRegistration } from "./service-worker.js";
 
 const OFF_KEY = "gc-push-off";
+// Endereço que o servidor confirmou que salvou. Sem ele, ter inscrição no navegador
+// não basta para dizer "ligado": o POST pode ter falhado (rede, deploy, 5xx).
+const SAVED_KEY = "gc-push-saved";
 
 let api = null;
 let configPromise = null;
 let currentState = "loading";
+let savedEndpoint = null;
 
 export function configurePushClient(apiFn) {
   api = apiFn;
@@ -57,6 +61,25 @@ function writeOff(value) {
     else localStorage.removeItem(OFF_KEY);
   } catch {
     /* modo privado */
+  }
+}
+
+function readSaved() {
+  if (savedEndpoint) return savedEndpoint;
+  try {
+    return localStorage.getItem(SAVED_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeSaved(endpoint) {
+  savedEndpoint = endpoint || null;
+  try {
+    if (endpoint) localStorage.setItem(SAVED_KEY, endpoint);
+    else localStorage.removeItem(SAVED_KEY);
+  } catch {
+    /* modo privado: fica só na memória até recarregar */
   }
 }
 
@@ -109,7 +132,12 @@ export async function getPushState() {
   const registration = await activeRegistration(5000);
   if (!registration) return setState("unsupported");
   const subscription = await registration.pushManager.getSubscription();
-  if (subscription && Notification.permission === "granted" && sameKey(subscription, config.publicKey)) {
+  if (
+    subscription
+    && Notification.permission === "granted"
+    && sameKey(subscription, config.publicKey)
+    && subscription.endpoint === readSaved()
+  ) {
     return setState("subscribed");
   }
   return setState("idle");
@@ -127,10 +155,16 @@ async function subscribeAndSave(registration, publicKey) {
       applicationServerKey: keyBytes(publicKey),
     });
   }
-  await api("/api/push/subscriptions", {
-    method: "POST",
-    body: JSON.stringify({ subscription: subscription.toJSON(), lang: getLang() }),
-  });
+  try {
+    await api("/api/push/subscriptions", {
+      method: "POST",
+      body: JSON.stringify({ subscription: subscription.toJSON(), lang: getLang() }),
+    });
+  } catch (error) {
+    writeSaved(null);
+    throw error;
+  }
+  writeSaved(subscription.endpoint);
 }
 
 /**
@@ -179,6 +213,7 @@ export async function disablePush() {
     });
     await subscription.unsubscribe().catch(() => {});
   }
+  writeSaved(null);
   writeOff(true);
   return getPushState();
 }
@@ -208,6 +243,7 @@ export async function syncPushSubscription() {
 
 /** Ao sair da conta: este aparelho para de receber avisos dela (a permissão fica). */
 export async function detachPushOnLogout() {
+  writeSaved(null);
   try {
     const registration = await activeRegistration(1500);
     const subscription = registration ? await registration.pushManager.getSubscription() : null;
