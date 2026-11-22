@@ -10,6 +10,7 @@ import {
 } from "./activity-alert.js";
 import { t } from "./i18n.js";
 import { disablePush, enablePush, getPushState, pushStateNow, sendTestPush } from "./push.js";
+import { openDeniedGuide, openIosGuide } from "./push-gate.js";
 import { showToast } from "./toast.js";
 
 const number = new Intl.NumberFormat("pt-BR");
@@ -338,9 +339,15 @@ function pushControls() {
         else note = t(PUSH_REASON_TEXT[result.reason] || "push.error");
       }), "btn btn-small"));
     } else if (state === "denied") {
-      children.push(el("span", { className: "push-status is-warn", text: t("push.denied") }));
+      children.push(
+        el("span", { className: "push-status is-warn", text: t("push.denied") }),
+        button(t("gate.denied.cta"), openDeniedGuide),
+      );
     } else if (state === "ios-install") {
-      children.push(el("span", { className: "push-status", text: t("push.iosHint") }));
+      children.push(
+        el("span", { className: "push-status", text: t("push.iosHint") }),
+        button(t("gate.ios.cta"), openIosGuide),
+      );
     }
     if (note) children.push(el("p", { className: "push-note", text: note }));
     wrap.replaceChildren(...children);
