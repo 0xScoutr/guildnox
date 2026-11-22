@@ -1,4 +1,5 @@
 import { t } from "./i18n.js";
+import { activeRegistration } from "./service-worker.js";
 
 const SOUND_PREF_KEY = "activitySoundEnabled";
 const VOLUME_PREF_KEY = "activitySoundVolume";
@@ -81,20 +82,35 @@ function pageInBackground() {
   return Boolean(document.hidden) || !document.hasFocus();
 }
 
-function showDesktopNotification(activity) {
+async function showDesktopNotification(activity) {
   if (!("Notification" in window)) return;
   if (Notification.permission !== "granted") return;
   if (!pageInBackground()) return;
 
   const name = String(activity?.name || "").trim() || t("act.title");
+  const title = t("act.notify.title");
+  const options = {
+    body: t("act.notify.body", { name }),
+    icon: "/icons/icon-192.png",
+    badge: "/icons/badge-96.png",
+    tag: `guildnox-activity-${activity?.id || "open"}`,
+    renotify: true,
+    data: { hash: "#/atividades" },
+  };
+
+  // No Android, new Notification() lança erro: lá só o service worker mostra notificação.
+  const registration = await activeRegistration();
+  if (registration) {
+    try {
+      await registration.showNotification(title, options);
+      return;
+    } catch {
+      /* tenta o jeito antigo abaixo */
+    }
+  }
+
   try {
-    const note = new Notification(t("act.notify.title"), {
-      body: t("act.notify.body", { name }),
-      icon: "/logo.jpg",
-      badge: "/logo.jpg",
-      tag: `guildnox-activity-${activity?.id || "open"}`,
-      renotify: true,
-    });
+    const note = new Notification(title, options);
     note.onclick = () => {
       try {
         window.focus();
@@ -170,7 +186,7 @@ async function playActivitySound(activityId) {
 /** Aviso ao abrir atividade: notificação do sistema (se minimizado) + áudio/voz. */
 export async function notifyActivityOpened(activity = null) {
   if (!isSoundEnabled()) return;
-  if (activity) showDesktopNotification(activity);
+  if (activity) showDesktopNotification(activity).catch(() => {});
   if (activity?.hasSound) {
     try {
       if (await playActivitySound(activity.id)) return;
