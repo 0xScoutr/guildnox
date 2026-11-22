@@ -9,6 +9,7 @@ import { auctionImage, auctionsView } from "./auctions.js";
 import { getLang, LANGS, setLang, t } from "./i18n.js";
 import { rankingView } from "./ranking.js";
 import { configurePushClient, detachPushOnLogout, syncPushSubscription } from "./push.js";
+import { mountPushGate } from "./push-gate.js";
 import { registerServiceWorker } from "./service-worker.js";
 
 const API = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
@@ -1716,11 +1717,13 @@ function ensureShell() {
       ]),
     ]),
     el("main", { className: "main" }, [
+      el("div", { className: "push-gate-slot", hidden: "hidden" }),
       el("div", { className: "page-slot" }),
     ]),
     el("aside", { className: "profile profile-slot" }),
   ]);
   document.getElementById("app").replaceChildren(root);
+  mountPushGate(root.querySelector(".push-gate-slot"));
   return root;
 }
 
