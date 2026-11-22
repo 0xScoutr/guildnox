@@ -1829,7 +1829,9 @@ input, select {
     min-height: 0;
   }
   .shell {
-    grid-template-columns: 1fr;
+    /* minmax(0, ...) e não 1fr: com 1fr a coluna cresce até caber a barra de cima
+       inteira numa linha (uns 950 px) e corta todas as páginas no celular. */
+    grid-template-columns: minmax(0, 1fr);
     grid-template-rows: none;
     height: auto;
     max-height: none;
@@ -1842,12 +1844,22 @@ input, select {
     overflow: visible;
   }
   .sidebar, .profile { border: 0; }
-  .sidebar { position: sticky; top: 0; z-index: 2; flex-direction: row; align-items: center; }
+  .sidebar { position: sticky; top: 0; z-index: 2; flex-direction: row; flex-wrap: wrap; align-items: center; row-gap: 10px; }
   .sidebar-brand { flex-direction: row; gap: 10px; padding: 0; }
   .sidebar-brand .medallion { --size: 42px; }
   .brand-name { font-size: 14px; letter-spacing: 0.1em; }
-  .nav { flex-direction: row; }
-  .sidebar-foot { margin-top: 0; display: flex; align-items: center; gap: 8px; }
+  /* O menu vai para uma linha própria e desliza para o lado quando não cabe. */
+  .nav {
+    order: 3;
+    flex: 1 1 100%;
+    flex-direction: row;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .nav::-webkit-scrollbar { display: none; }
+  .nav button { flex: 0 0 auto; width: auto; }
+  .sidebar-foot { margin-top: 0; margin-left: auto; display: flex; align-items: center; gap: 8px; }
   .logout { margin-top: 0; width: auto; }
   .nav button[aria-current="page"]::after { display: none; }
   .stats, .split { grid-template-columns: 1fr 1fr; }
