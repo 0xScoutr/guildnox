@@ -1,3 +1,4 @@
+import { parse as legacyParse } from "node:url";
 import webpush from "web-push";
 import { pool } from "./db.js";
 
@@ -28,6 +29,7 @@ const PUSH_HOST_SUFFIXES = [".notify.windows.com", ".push.apple.com"];
 
 const LANGS = new Set(["pt", "en", "es"]);
 const BASE64URL_RE = /^[A-Za-z0-9_-]+={0,2}$/;
+const HOSTNAME_RE = /^[a-z0-9-]+(\.[a-z0-9-]+)+$/;
 
 const TEXT = {
   pt: {
@@ -167,6 +169,16 @@ export function isAllowedPushEndpoint(value) {
   }
   if (url.protocol !== "https:" || url.username || url.password || url.port) return false;
   const host = url.hostname.toLowerCase();
+  // Só letras, números, hífen e ponto: o web-push monta a requisição com o url.parse()
+  // antigo, que corta o host em caracteres como ; ` { e mandaria para outro servidor.
+  if (!HOSTNAME_RE.test(host)) return false;
+  let legacyHost = "";
+  try {
+    legacyHost = String(legacyParse(value).hostname || "").toLowerCase();
+  } catch {
+    return false;
+  }
+  if (legacyHost !== host) return false;
   return PUSH_HOSTS.has(host) || PUSH_HOST_SUFFIXES.some((suffix) => host.endsWith(suffix));
 }
 
