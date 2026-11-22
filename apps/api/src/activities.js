@@ -368,6 +368,8 @@ async function creditActivityParticipation(client, activityId, discordId, dkpVal
 
 export async function participateActivity(actor, id, guildId = null, alsoCredit = null) {
   const client = await pool.connect();
+  let ownerCredit;
+  let alsoAwardedDkp = null;
   try {
     await client.query("BEGIN");
     const locked = await client.query("SELECT * FROM activities WHERE id = $1 FOR UPDATE", [id]);
@@ -388,7 +390,7 @@ export async function participateActivity(actor, id, guildId = null, alsoCredit 
       throw fail(400, "O prazo para participar acabou.", { error: "expired" });
     }
 
-    const ownerCredit = await creditActivityParticipation(
+    ownerCredit = await creditActivityParticipation(
       client,
       id,
       actor.discord_id,
@@ -399,7 +401,6 @@ export async function participateActivity(actor, id, guildId = null, alsoCredit 
       throw fail(400, "Você já participou dessa atividade.", { error: "already_participated" });
     }
 
-    let alsoAwardedDkp = null;
     // Piloto: um check-in conta presença/DKP na conta do dono e na dele.
     const extraId = alsoCredit?.discord_id;
     if (extraId && extraId !== actor.discord_id) {
@@ -414,17 +415,22 @@ export async function participateActivity(actor, id, guildId = null, alsoCredit 
     }
 
     await client.query("COMMIT");
-
-    const row = await loadActivity(id);
-    return {
-      activity: await presentActivity(row, actor.discord_id),
-      awardedDkp: ownerCredit.awardedDkp,
-      alsoAwardedDkp,
-    };
   } catch (error) {
     try { await client.query("ROLLBACK"); } catch { /* ignore */ }
     throw error;
   } finally {
     client.release();
   }
+
+  // Só relê depois de devolver a conexão: na hora do boss a guilda inteira faz check-in
+  // no mesmo segundo (inclusive pelo botão da notificação), e segurar uma conexão
+  // enquanto pede outra esgota o pool. Um erro aqui também não pode virar 500 para
+  // um check-in que já foi gravado.
+  let activity = null;
+  try {
+    activity = await presentActivity(await loadActivity(id), actor.discord_id);
+  } catch (error) {
+    console.error(`check-in #${id}: gravado, mas falhou ao reler a atividade: ${error.message}`);
+  }
+  return { activity, awardedDkp: ownerCredit.awardedDkp, alsoAwardedDkp };
 }
