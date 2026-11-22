@@ -3,14 +3,27 @@ import cookieParser from "cookie-parser";
 import express from "express";
 import {
   createAuction,
+  deleteAuction,
   getAuction,
+  getAuctionImage,
   listAuctions,
   migrateAuctions,
   placeBid,
   presentMemberWallet,
   setAuctionFavorite,
   setAuctionPaused,
+  updateAuction,
 } from "./auctions.js";
+import {
+  createActivity,
+  getActivitySound,
+  listActivities,
+  listActivityParticipants,
+  deleteActivity,
+  migrateActivities,
+  participateActivity,
+  reopenActivity,
+} from "./activities.js";
 import {
   countMasters,
   dashboardData,
@@ -19,9 +32,41 @@ import {
   migrate,
   pool,
   present,
+  presentMember,
+  expelMember,
   updateMember,
   upsertDiscordUser,
 } from "./db.js";
+import { listDkpHistory, migrateDkpLedger, setDkpAbsolute } from "./dkp-ledger.js";
+import {
+  applyToGuild,
+  cancelGuildApplication,
+  createGuild,
+  deleteGuild,
+  effectiveGuildId,
+  findGuild,
+  getGuildsParticipationAverage,
+  getPendingApplication,
+  isOfficer,
+  listActiveGuilds,
+  listGuilds,
+  listPendingApplications,
+  migrateGuilds,
+  presentMemberWithGuild,
+  renameGuild,
+  resolveGuildApplication,
+  selectGuild,
+  setGuildActive,
+} from "./guilds.js";
+import { getRanking } from "./ranking.js";
+import {
+  acceptPilotInvite,
+  getPilotContext,
+  invitePilot,
+  listPilotCandidates,
+  migratePilots,
+  removePilotLink,
+} from "./pilots.js";
 
 const PORT = Number(process.env.PORT || 8080);
 const ROLES = new Set(["master", "admin", "member"]);
@@ -85,10 +130,12 @@ function readSession(token) {
 }
 
 function cookieBase() {
+  // Login passa pelo mesmo site (guildnox.app → proxy → API).
+  // Lax evita cookie cross-site bloqueado pelo navegador.
   return {
     httpOnly: true,
     secure: true,
-    sameSite: "none",
+    sameSite: "lax",
     path: "/",
   };
 }
@@ -135,6 +182,59 @@ async function requireUser(req, res, next) {
   }
 }
 
+function pilotActAs(req) {
+  return req.cookies?.gc_pilot_act === "self" ? "self" : "owner";
+}
+
+async function requireGuild(req, res, next) {
+  try {
+    const ctx = await getPilotContext(req.member, { actAs: pilotActAs(req) });
+    req.pilotContext = ctx;
+    req.actor = ctx.actor;
+    const guildId = effectiveGuildId(ctx.actor);
+    if (guildId == null) {
+      return res.status(403).json({
+        error: "Escolha uma guilda para continuar.",
+        needsGuild: true,
+      });
+    }
+    req.guildId = guildId;
+    next();
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function presentMe(member, actAs = "owner") {
+  const ctx = await getPilotContext(member, { actAs });
+  const actor = ctx.actor;
+  const [wallet, withGuild, pendingApplication] = await Promise.all([
+    presentMemberWallet(actor),
+    presentMemberWithGuild(actor),
+    member.guild_id == null && !ctx.piloting
+      ? getPendingApplication(member.discord_id)
+      : null,
+  ]);
+  return {
+    ...wallet,
+    // Permissões seguem quem está logado; ficha/DKP seguem o personagem selecionado.
+    role: member.role,
+    loginDiscordId: member.discord_id,
+    loginUsername: member.username,
+    loginNick: member.character_name || member.global_name || member.username,
+    guildId: withGuild.guildId,
+    managingGuildId: withGuild.managingGuildId,
+    currentGuild: withGuild.currentGuild,
+    homeGuild: withGuild.homeGuild,
+    pendingApplication,
+    actingAs: ctx.actingAs,
+    pilotSeat: ctx.pilotSeat,
+    piloting: ctx.piloting,
+    pilot: ctx.pilot,
+    pilotInvite: ctx.invite,
+  };
+}
+
 function homeUrl(error) {
   const origin = clientOrigins()[0];
   return error ? `${origin}/?error=${encodeURIComponent(error)}` : `${origin}/#/painel`;
@@ -144,7 +244,7 @@ const app = express();
 app.disable("x-powered-by");
 app.set("trust proxy", 1);
 app.use(cookieParser());
-app.use(express.json({ limit: "16kb" }));
+app.use(express.json({ limit: "2mb" }));
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   if (origin && clientOrigins().includes(origin)) {
@@ -168,7 +268,7 @@ app.get("/api/status", wrap(async (_req, res) => {
   await pool.query("SELECT 1");
   res.json({
     ok: true,
-    name: "guildchapa",
+    name: "guildnox",
     game: "Vampir",
     discord: discordReady(),
   });
@@ -243,16 +343,145 @@ app.post("/auth/logout", (req, res) => {
 });
 
 app.get("/api/me", requireUser, wrap(async (req, res) => {
-  res.json({ member: await presentMemberWallet(req.member) });
+  res.json({
+    member: await presentMe(req.member, pilotActAs(req)),
+    guilds: isOfficer(req.member) ? await listActiveGuilds() : await listActiveGuilds(),
+  });
 }));
 
-app.get("/api/dashboard", requireUser, wrap(async (req, res) => {
-  res.json(await dashboardData(req.member));
+app.get("/api/guilds/active", requireUser, wrap(async (_req, res) => {
+  res.json({ guilds: await listActiveGuilds() });
 }));
 
-app.get("/api/members", requireUser, wrap(async (_req, res) => {
-  const members = await listMembers();
-  res.json({ members: members.map(present) });
+app.get("/api/guilds/participation-average", requireUser, wrap(async (_req, res) => {
+  res.json(await getGuildsParticipationAverage());
+}));
+
+app.get("/api/guilds", requireUser, wrap(async (req, res) => {
+  if (!isOfficer(req.member)) throw fail(403, "Só o mestre ou um admin gerencia guildas.");
+  res.json({ guilds: await listGuilds() });
+}));
+
+app.post("/api/guilds", requireUser, wrap(async (req, res) => {
+  res.status(201).json({ guild: await createGuild(req.member, req.body || {}) });
+}));
+
+app.post("/api/guilds/:id/active", requireUser, wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id < 1) throw fail(400, "Guilda inválida.");
+  res.json({ guild: await setGuildActive(req.member, id, Boolean(req.body?.active)) });
+}));
+
+app.patch("/api/guilds/:id", requireUser, wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id < 1) throw fail(400, "Guilda inválida.");
+  res.json({ guild: await renameGuild(req.member, id, req.body || {}) });
+}));
+
+app.delete("/api/guilds/:id", requireUser, wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id < 1) throw fail(400, "Guilda inválida.");
+  res.json(await deleteGuild(req.member, id));
+}));
+
+app.post("/api/guilds/select", requireUser, wrap(async (req, res) => {
+  const updated = await selectGuild(req.member, req.body?.guildId);
+  res.json({ member: await presentMe(updated, pilotActAs(req)) });
+}));
+
+app.post("/api/guilds/apply", requireUser, wrap(async (req, res) => {
+  const result = await applyToGuild(req.member, req.body?.guildId);
+  const memberRow = result.member?.discord_id
+    ? result.member
+    : req.member;
+  const fresh = await findMember(memberRow.discord_id);
+  res.json({
+    member: await presentMe(fresh, pilotActAs(req)),
+    pendingApplication: result.pendingApplication
+      ?? (await getPendingApplication(fresh.discord_id)),
+  });
+}));
+
+app.delete("/api/guilds/apply", requireUser, wrap(async (req, res) => {
+  await cancelGuildApplication(req.member);
+  const fresh = await findMember(req.member.discord_id);
+  res.json({ member: await presentMe(fresh, pilotActAs(req)) });
+}));
+
+app.get("/api/guilds/applications", requireUser, requireGuild, wrap(async (req, res) => {
+  res.json({ applications: await listPendingApplications(req.member) });
+}));
+
+app.post("/api/guilds/applications/:id/accept", requireUser, requireGuild, wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id < 1) throw fail(400, "Pedido inválido.");
+  res.json(await resolveGuildApplication(req.member, id, "accept"));
+}));
+
+app.post("/api/guilds/applications/:id/reject", requireUser, requireGuild, wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id < 1) throw fail(400, "Pedido inválido.");
+  res.json(await resolveGuildApplication(req.member, id, "reject"));
+}));
+
+app.get("/api/dashboard", requireUser, requireGuild, wrap(async (req, res) => {
+  res.json(await dashboardData(req.actor || req.member, req.guildId));
+}));
+
+app.get("/api/pilots/candidates", requireUser, wrap(async (req, res) => {
+  const ownerDiscordId = req.query.ownerDiscordId || null;
+  res.json({ members: await listPilotCandidates(req.member, ownerDiscordId) });
+}));
+
+app.post("/api/pilots/acting", requireUser, wrap(async (req, res) => {
+  const mode = req.body?.actAs === "self" ? "self" : "owner";
+  if (mode === "owner") {
+    const seat = await getPilotContext(req.member, { actAs: "self" });
+    if (!seat.pilotSeat) throw fail(400, "Você não tem uma conta vinculada para pilotar.");
+  }
+  res.cookie("gc_pilot_act", mode, {
+    ...cookieBase(),
+    maxAge: 14 * 24 * 60 * 60 * 1000,
+  });
+  const fresh = await findMember(req.member.discord_id);
+  res.json({ member: await presentMe(fresh, mode) });
+}));
+
+app.post("/api/pilots", requireUser, wrap(async (req, res) => {
+  res.status(201).json(await invitePilot(req.member, req.body || {}));
+}));
+
+app.post("/api/pilots/:id/accept", requireUser, wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id < 1) throw fail(400, "Convite inválido.");
+  await acceptPilotInvite(req.member, id);
+  res.cookie("gc_pilot_act", "owner", {
+    ...cookieBase(),
+    maxAge: 14 * 24 * 60 * 60 * 1000,
+  });
+  const fresh = await findMember(req.member.discord_id);
+  res.json({ member: await presentMe(fresh, "owner") });
+}));
+
+app.delete("/api/pilots/:id", requireUser, wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id < 1) throw fail(400, "Vínculo inválido.");
+  await removePilotLink(req.member, id);
+  res.cookie("gc_pilot_act", "self", {
+    ...cookieBase(),
+    maxAge: 14 * 24 * 60 * 60 * 1000,
+  });
+  const fresh = await findMember(req.member.discord_id);
+  res.json({ member: await presentMe(fresh, "self") });
+}));
+
+app.get("/api/members", requireUser, requireGuild, wrap(async (req, res) => {
+  if (!isOfficer(req.member)) {
+    throw fail(403, "Só o mestre ou um admin vê a lista de membros.");
+  }
+  // Oficiais veem a aliança inteira pra filtrar por guilda.
+  const members = await listMembers(null);
+  res.json({ members: members.map(presentMember) });
 }));
 
 app.patch("/api/members/:discordId", requireUser, wrap(async (req, res) => {
@@ -262,19 +491,23 @@ app.patch("/api/members/:discordId", requireUser, wrap(async (req, res) => {
 
   const actor = req.member;
   const isSelf = actor.discord_id === target.discord_id;
-  const officer = actor.role === "master" || actor.role === "admin";
+  const officer = isOfficer(actor);
   const master = actor.role === "master";
   if (!isSelf && !officer) throw fail(403, "Você só pode editar a própria ficha.");
   if ("dkp" in req.body && !officer) throw fail(403, "Só o mestre ou um admin altera DKP.");
   if ("role" in req.body && !master) throw fail(403, "Só o mestre altera cargos.");
+  if ("guildId" in req.body && !officer) throw fail(403, "Só o mestre ou um admin altera a guilda do membro.");
 
   const patch = {};
   if ("characterName" in req.body) patch.characterName = readText(req.body.characterName, 32, "O nome");
   if ("className" in req.body) patch.className = readText(req.body.className, 32, "A classe");
   if ("level" in req.body) patch.level = readInt(req.body.level, { min: 1, max: 9999, label: "O nível" });
-  if ("power" in req.body) patch.power = readInt(req.body.power, { min: 0, max: 2000000000, label: "O poder" });
+  if ("power" in req.body) {
+    patch.power = readInt(req.body.power, { min: 0, max: 2000000000, label: "O poder" });
+  }
+  let nextDkp = null;
   if ("dkp" in req.body && officer) {
-    patch.dkp = readInt(req.body.dkp, { min: -1000000, max: 1000000, label: "O DKP" });
+    nextDkp = readInt(req.body.dkp, { min: -1000000, max: 1000000, label: "O DKP" });
   }
   if ("role" in req.body && master) {
     if (!ROLES.has(req.body.role)) throw fail(400, "Cargo inválido.");
@@ -283,57 +516,173 @@ app.patch("/api/members/:discordId", requireUser, wrap(async (req, res) => {
     }
     patch.role = req.body.role;
   }
+  if ("guildId" in req.body && officer) {
+    const guildId = readInt(Number(req.body.guildId), { min: 1, max: 1000000, label: "A guilda" });
+    const guild = await findGuild(guildId);
+    if (!guild || guild.active === false) throw fail(400, "Guilda inválida ou inativa.");
+    patch.guildId = guildId;
+  }
+
+  if (nextDkp != null && nextDkp !== Number(target.dkp)) {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await setDkpAbsolute(client, {
+        discordId: target.discord_id,
+        nextDkp,
+        reason: "adjustment",
+        label: "Ajuste manual",
+      });
+      await client.query("COMMIT");
+    } catch (error) {
+      try { await client.query("ROLLBACK"); } catch { /* ignore */ }
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
 
   const updated = await updateMember(target.discord_id, patch);
   const member = updated.discord_id === actor.discord_id
-    ? await presentMemberWallet(updated)
-    : present(updated);
+    ? await presentMe(updated, pilotActAs(req))
+    : await presentMemberWithGuild(updated);
   res.json({ member });
 }));
 
-app.get("/api/auctions", requireUser, wrap(async (req, res) => {
-  res.json({ auctions: await listAuctions(req.member) });
+app.get("/api/me/dkp-history", requireUser, wrap(async (req, res) => {
+  const actor = req.actor || req.member;
+  res.json({ entries: await listDkpHistory(actor.discord_id) });
 }));
 
-app.get("/api/auctions/:id", requireUser, wrap(async (req, res) => {
+app.delete("/api/members/:discordId", requireUser, wrap(async (req, res) => {
+  if (!/^\d{5,22}$/.test(req.params.discordId)) throw fail(400, "Membro inválido.");
+  res.json(await expelMember(req.member, req.params.discordId));
+}));
+
+app.get("/api/auctions", requireUser, requireGuild, wrap(async (req, res) => {
+  res.json({ auctions: await listAuctions(req.actor || req.member, req.guildId) });
+}));
+
+app.get("/api/auctions/:id/image", requireUser, requireGuild, wrap(async (req, res) => {
+  const image = await getAuctionImage(Number(req.params.id), req.guildId);
+  res.setHeader("Content-Type", image.contentType);
+  res.setHeader("Cache-Control", "private, max-age=3600");
+  res.send(image.buffer);
+}));
+
+app.get("/api/auctions/:id", requireUser, requireGuild, wrap(async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id < 1) throw fail(400, "Leilão inválido.");
-  res.json(await getAuction(id, req.member));
+  res.json(await getAuction(id, req.actor || req.member, req.guildId));
 }));
 
-app.post("/api/auctions", requireUser, wrap(async (req, res) => {
-  res.status(201).json({ auction: await createAuction(req.member, req.body || {}) });
+app.post("/api/auctions", requireUser, requireGuild, wrap(async (req, res) => {
+  if (req.pilotContext?.piloting) throw fail(403, "Piloto não cria leilão.");
+  const created = await createAuction(req.member, req.body || {}, req.guildId);
+  res.status(201).json(created);
 }));
 
-app.post("/api/auctions/:id/bid", requireUser, wrap(async (req, res) => {
+app.post("/api/auctions/:id/bid", requireUser, requireGuild, wrap(async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id < 1) throw fail(400, "Leilão inválido.");
+  const actor = req.actor || req.member;
+  await getAuction(id, actor, req.guildId);
   const amount = Number(req.body?.amount);
-  res.json({ auction: await placeBid(req.member, id, amount) });
+  res.json({ auction: await placeBid(actor, id, amount) });
 }));
 
-app.post("/api/auctions/:id/pause", requireUser, wrap(async (req, res) => {
+app.post("/api/auctions/:id/pause", requireUser, requireGuild, wrap(async (req, res) => {
+  if (req.pilotContext?.piloting) throw fail(403, "Piloto não pausa leilão.");
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id < 1) throw fail(400, "Leilão inválido.");
+  await getAuction(id, req.member, req.guildId);
   res.json({ auction: await setAuctionPaused(req.member, id, true) });
 }));
 
-app.post("/api/auctions/:id/resume", requireUser, wrap(async (req, res) => {
+app.post("/api/auctions/:id/resume", requireUser, requireGuild, wrap(async (req, res) => {
+  if (req.pilotContext?.piloting) throw fail(403, "Piloto não retoma leilão.");
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id < 1) throw fail(400, "Leilão inválido.");
+  await getAuction(id, req.member, req.guildId);
   res.json({ auction: await setAuctionPaused(req.member, id, false) });
 }));
 
-app.post("/api/auctions/:id/favorite", requireUser, wrap(async (req, res) => {
+app.delete("/api/auctions/:id", requireUser, requireGuild, wrap(async (req, res) => {
+  if (req.pilotContext?.piloting) throw fail(403, "Piloto não exclui leilão.");
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id < 1) throw fail(400, "Leilão inválido.");
-  res.json({ auction: await setAuctionFavorite(req.member, id, true) });
+  res.json(await deleteAuction(req.member, id, req.guildId));
 }));
 
-app.delete("/api/auctions/:id/favorite", requireUser, wrap(async (req, res) => {
+app.patch("/api/auctions/:id", requireUser, requireGuild, wrap(async (req, res) => {
+  if (req.pilotContext?.piloting) throw fail(403, "Piloto não edita leilão.");
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id < 1) throw fail(400, "Leilão inválido.");
-  res.json({ auction: await setAuctionFavorite(req.member, id, false) });
+  res.json({ auction: await updateAuction(req.member, id, req.body || {}, req.guildId) });
+}));
+
+app.post("/api/auctions/:id/favorite", requireUser, requireGuild, wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id < 1) throw fail(400, "Leilão inválido.");
+  const actor = req.actor || req.member;
+  await getAuction(id, actor, req.guildId);
+  res.json({ auction: await setAuctionFavorite(actor, id, true) });
+}));
+
+app.delete("/api/auctions/:id/favorite", requireUser, requireGuild, wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id < 1) throw fail(400, "Leilão inválido.");
+  const actor = req.actor || req.member;
+  await getAuction(id, actor, req.guildId);
+  res.json({ auction: await setAuctionFavorite(actor, id, false) });
+}));
+
+app.get("/api/activities", requireUser, requireGuild, wrap(async (req, res) => {
+  res.json({ activities: await listActivities(req.actor || req.member, req.guildId) });
+}));
+
+app.post("/api/activities", requireUser, requireGuild, wrap(async (req, res) => {
+  if (req.pilotContext?.piloting) throw fail(403, "Piloto não cria atividade.");
+  res.status(201).json({ activity: await createActivity(req.member, req.body || {}, req.guildId) });
+}));
+
+app.get("/api/activities/:id/sound", requireUser, requireGuild, wrap(async (req, res) => {
+  const sound = await getActivitySound(Number(req.params.id), req.guildId);
+  res.setHeader("Content-Type", sound.contentType);
+  res.setHeader("Cache-Control", "private, max-age=3600");
+  res.send(sound.buffer);
+}));
+
+app.get("/api/activities/:id/participants", requireUser, requireGuild, wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id < 1) throw fail(400, "Atividade inválida.");
+  res.json({ participants: await listActivityParticipants(id, req.guildId) });
+}));
+
+app.post("/api/activities/:id/participate", requireUser, requireGuild, wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id < 1) throw fail(400, "Atividade inválida.");
+  const actor = req.actor || req.member;
+  const alsoCredit = req.pilotContext?.piloting ? req.member : null;
+  res.json(await participateActivity(actor, id, req.guildId, alsoCredit));
+}));
+
+app.post("/api/activities/:id/reopen", requireUser, requireGuild, wrap(async (req, res) => {
+  if (req.pilotContext?.piloting) throw fail(403, "Piloto não reabre atividade.");
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id < 1) throw fail(400, "Atividade inválida.");
+  res.json({ activity: await reopenActivity(req.member, id, req.body || {}, req.guildId) });
+}));
+
+app.delete("/api/activities/:id", requireUser, requireGuild, wrap(async (req, res) => {
+  if (req.pilotContext?.piloting) throw fail(403, "Piloto não exclui atividade.");
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id < 1) throw fail(400, "Atividade inválida.");
+  res.json(await deleteActivity(req.member, id, req.guildId));
+}));
+
+app.get("/api/ranking", requireUser, requireGuild, wrap(async (req, res) => {
+  res.json(await getRanking(req.query || {}, req.guildId));
 }));
 
 app.use((error, _req, res, _next) => {
@@ -356,6 +705,10 @@ if (!process.env.SESSION_SECRET) {
 
 await migrate();
 await migrateAuctions();
+await migrateActivities();
+await migrateGuilds();
+await migratePilots();
+await migrateDkpLedger();
 app.listen(PORT, () => {
-  console.log(`guildchapa api em :${PORT}`);
+  console.log(`guildnox api em :${PORT}`);
 });

@@ -1,3 +1,4 @@
+import { applyDkpDelta } from "./dkp-ledger.js";
 import { pool, present } from "./db.js";
 
 function fail(status, message, data = {}) {
@@ -13,7 +14,7 @@ function nickOf(member) {
 
 function minNextBid(startingBid, currentBid) {
   if (currentBid == null) return startingBid;
-  return Math.max(currentBid + 1, Math.ceil(currentBid * 1.2));
+  return currentBid + 1;
 }
 
 function computeStatus(row, now = Date.now()) {
@@ -70,6 +71,10 @@ export async function migrateAuctions() {
   await pool.query(`
     CREATE INDEX IF NOT EXISTS auction_favorites_member_idx
     ON auction_favorites(member_discord_id, created_at DESC)
+  `);
+  await pool.query(`
+    ALTER TABLE auctions
+    ADD COLUMN IF NOT EXISTS image_data TEXT
   `);
 }
 
@@ -178,11 +183,17 @@ async function finalizeIfNeeded(row, client = pool) {
       );
       const payer = member.rows[0];
       if (payer) {
-        const next = Math.max(0, payer.dkp - winner.amount);
-        await client.query(
-          "UPDATE members SET dkp = $1, updated_at = now() WHERE discord_id = $2",
-          [next, payer.discord_id],
-        );
+        const charge = Math.min(Number(payer.dkp), Number(winner.amount));
+        if (charge > 0) {
+          await applyDkpDelta(client, {
+            discordId: payer.discord_id,
+            amount: -charge,
+            reason: "auction",
+            label: auction.item_name || `Leilão #${auction.id}`,
+            refType: "auction",
+            refId: String(auction.id),
+          });
+        }
       }
       await client.query(
         `
@@ -206,9 +217,27 @@ async function finalizeIfNeeded(row, client = pool) {
   return loadAuctionRow(row.id, client);
 }
 
-function presentAuction(row, top, viewerId, { hasYourBid = false, isFavorite = false } = {}) {
+const IMAGE_DATA_MAX = 450_000;
+const IMAGE_DATA_RE = /^data:image\/(jpeg|jpg|png|webp);base64,[A-Za-z0-9+/=\s]+$/i;
+
+function normalizeImageData(value) {
+  if (value == null || value === "") return null;
+  if (typeof value !== "string") throw fail(400, "Foto do item inválida.");
+  const imageData = value.trim().replace(/\s+/g, "");
+  if (!imageData) return null;
+  if (!IMAGE_DATA_RE.test(imageData)) {
+    throw fail(400, "Use uma imagem JPG, PNG ou WEBP.");
+  }
+  if (imageData.length > IMAGE_DATA_MAX) {
+    throw fail(400, "A foto ficou grande demais. Escolha outra ou uma menor.");
+  }
+  return imageData;
+}
+
+function presentAuction(row, top, viewerId, { hasYourBid = false, isFavorite = false, includeImage = false } = {}) {
   const status = computeStatus(row);
   const currentBid = top ? top.amount : null;
+  const hasImage = Boolean(row.has_image ?? row.image_data);
   return {
     id: Number(row.id),
     itemName: row.item_name,
@@ -230,6 +259,8 @@ function presentAuction(row, top, viewerId, { hasYourBid = false, isFavorite = f
     youAreHighestBidder: Boolean(top && top.bidder_discord_id === viewerId),
     hasYourBid,
     isFavorite,
+    hasImage,
+    imageData: includeImage && row.image_data ? row.image_data : null,
     winnerDiscordId: row.winner_discord_id,
   };
 }
@@ -260,8 +291,20 @@ async function isFavoriteAuction(auctionId, viewerId, client = pool) {
   return rowCount > 0;
 }
 
-export async function listAuctions(viewer) {
-  const { rows } = await pool.query("SELECT * FROM auctions ORDER BY created_at DESC LIMIT 300");
+export async function listAuctions(viewer, guildId) {
+  if (guildId == null) throw fail(400, "Escolha uma guilda para continuar.");
+  const { rows } = await pool.query(
+    `
+    SELECT id, item_name, description, starting_bid, starts_at, expires_at, reset_minutes,
+           quantity, paused_at, finalized_at, winner_discord_id, created_by, created_at, guild_id,
+           (image_data IS NOT NULL AND image_data <> '') AS has_image
+    FROM auctions
+    WHERE guild_id = $1
+    ORDER BY created_at DESC
+    LIMIT 300
+    `,
+    [guildId],
+  );
   const out = [];
   const ids = [];
   for (const row of rows) {
@@ -289,9 +332,17 @@ export async function listAuctions(viewer) {
   }));
 }
 
-export async function getAuction(id, viewer) {
-  let row = await loadAuctionRow(id);
+export async function assertAuctionGuild(row, guildId) {
   if (!row) throw fail(404, "Leilão não encontrado.");
+  if (guildId != null && Number(row.guild_id) !== Number(guildId)) {
+    throw fail(404, "Leilão não encontrado.");
+  }
+  return row;
+}
+
+export async function getAuction(id, viewer, guildId = null) {
+  let row = await loadAuctionRow(id);
+  await assertAuctionGuild(row, guildId);
   row = await finalizeIfNeeded(row);
   const top = await topBid(row.id);
   const bids = await listBids(row.id);
@@ -337,21 +388,27 @@ export async function setAuctionFavorite(viewer, id, favorite) {
   return getAuction(id, viewer);
 }
 
-export async function createAuction(actor, body) {
+export async function createAuction(actor, body, guildId) {
   if (actor.role !== "master" && actor.role !== "admin") {
     throw fail(403, "Só o mestre ou um admin cria leilão.");
   }
+  if (guildId == null) throw fail(400, "Escolha uma guilda para continuar.");
   const itemName = String(body.itemName || "").trim();
   if (!itemName || itemName.length > 80) throw fail(400, "Informe o nome do item.");
   const description = String(body.description || "").trim().slice(0, 500);
+  const imageData = normalizeImageData(body.imageData);
   const startingBid = Number(body.startingBid);
   const quantity = Number(body.quantity || 1);
+  const copies = Number(body.copies ?? 1);
   const resetMinutes = Number(body.resetMinutes ?? 2);
   if (!Number.isInteger(startingBid) || startingBid < 1 || startingBid > 1000000) {
     throw fail(400, "Lance inicial inválido.");
   }
   if (!Number.isInteger(quantity) || quantity < 1 || quantity > 9999) {
     throw fail(400, "Quantidade inválida.");
+  }
+  if (!Number.isInteger(copies) || copies < 1 || copies > 50) {
+    throw fail(400, "Informe entre 1 e 50 leilões iguais.");
   }
   if (!Number.isInteger(resetMinutes) || resetMinutes < 0 || resetMinutes > 120) {
     throw fail(400, "Minutos de extensão inválidos.");
@@ -364,17 +421,57 @@ export async function createAuction(actor, body) {
   }
   if (Number.isNaN(startsAt.getTime())) throw fail(400, "Início inválido.");
   const expiresAt = new Date(startsAt.getTime() + durationMinutes * 60 * 1000);
+  const startsIso = startsAt.toISOString();
+  const expiresIso = expiresAt.toISOString();
 
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const created = [];
+    for (let i = 0; i < copies; i += 1) {
+      const { rows } = await client.query(
+        `
+        INSERT INTO auctions
+          (item_name, description, starting_bid, starts_at, expires_at, reset_minutes, quantity, created_by, guild_id, image_data)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+        RETURNING id
+        `,
+        [itemName, description, startingBid, startsIso, expiresIso, resetMinutes, quantity, actor.discord_id, guildId, imageData],
+      );
+      created.push(rows[0].id);
+    }
+    await client.query("COMMIT");
+    const auctions = [];
+    for (const id of created) {
+      auctions.push(await getAuction(id, actor, guildId));
+    }
+    return { auction: auctions[0], auctions, created: auctions.length };
+  } catch (err) {
+    try { await client.query("ROLLBACK"); } catch { /* ignore */ }
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+export async function getAuctionImage(id, guildId) {
   const { rows } = await pool.query(
     `
-    INSERT INTO auctions
-      (item_name, description, starting_bid, starts_at, expires_at, reset_minutes, quantity, created_by)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-    RETURNING *
+    SELECT id, guild_id, image_data
+    FROM auctions
+    WHERE id = $1
     `,
-    [itemName, description, startingBid, startsAt.toISOString(), expiresAt.toISOString(), resetMinutes, quantity, actor.discord_id],
+    [id],
   );
-  return getAuction(rows[0].id, actor);
+  const row = rows[0];
+  await assertAuctionGuild(row, guildId);
+  if (!row.image_data) throw fail(404, "Este leilão não tem foto.");
+  const match = String(row.image_data).match(/^data:(image\/(?:jpeg|jpg|png|webp));base64,(.+)$/i);
+  if (!match) throw fail(404, "Foto inválida.");
+  return {
+    contentType: match[1].toLowerCase() === "image/jpg" ? "image/jpeg" : match[1].toLowerCase(),
+    buffer: Buffer.from(match[2], "base64"),
+  };
 }
 
 export async function setAuctionPaused(actor, id, paused) {
@@ -398,6 +495,124 @@ export async function setAuctionPaused(actor, id, paused) {
     );
   }
   return getAuction(id, actor);
+}
+
+export async function deleteAuction(actor, id, guildId = null) {
+  if (actor.role !== "master" && actor.role !== "admin") {
+    throw fail(403, "Só o mestre ou um admin exclui leilão.");
+  }
+  if (guildId == null) throw fail(400, "Escolha uma guilda para continuar.");
+
+  const row = await loadAuctionRow(id);
+  if (!row) throw fail(404, "Leilão não encontrado.");
+  await assertAuctionGuild(row, guildId);
+
+  // Lances e favoritos saem no CASCADE. DKP já cobrado de leilão encerrado permanece;
+  // lances abertos só liberam o DKP reservado (nunca debitado).
+  await pool.query("DELETE FROM auctions WHERE id = $1", [id]);
+  return { ok: true, id: Number(id), itemName: row.item_name };
+}
+
+export async function updateAuction(actor, id, body, guildId = null) {
+  if (actor.role !== "master" && actor.role !== "admin") {
+    throw fail(403, "Só o mestre ou um admin edita leilão.");
+  }
+  if (guildId == null) throw fail(400, "Escolha uma guilda para continuar.");
+
+  const row = await loadAuctionRow(id);
+  if (!row) throw fail(404, "Leilão não encontrado.");
+  await assertAuctionGuild(row, guildId);
+
+  const status = computeStatus(row);
+  if (status === "ended" || row.finalized_at) {
+    throw fail(400, "Não dá para editar leilão encerrado.");
+  }
+
+  const itemName = String(body.itemName ?? row.item_name).trim();
+  if (!itemName || itemName.length > 80) throw fail(400, "Informe o nome do item.");
+  const description = String(body.description ?? row.description ?? "").trim().slice(0, 500);
+
+  const quantity = body.quantity == null ? row.quantity : Number(body.quantity);
+  if (!Number.isInteger(quantity) || quantity < 1 || quantity > 9999) {
+    throw fail(400, "Quantidade inválida.");
+  }
+
+  const resetMinutes = body.resetMinutes == null ? row.reset_minutes : Number(body.resetMinutes);
+  if (!Number.isInteger(resetMinutes) || resetMinutes < 0 || resetMinutes > 120) {
+    throw fail(400, "Minutos de extensão inválidos.");
+  }
+
+  const top = await topBid(row.id);
+  let startingBid = row.starting_bid;
+  if (body.startingBid != null) {
+    const next = Number(body.startingBid);
+    if (!Number.isInteger(next) || next < 1 || next > 1000000) {
+      throw fail(400, "Lance inicial inválido.");
+    }
+    if (top && next !== row.starting_bid) {
+      throw fail(400, "Não dá para mudar o lance inicial depois que já houve lances.");
+    }
+    startingBid = next;
+  }
+
+  let startsAt = new Date(row.starts_at);
+  if (body.startsAt != null) {
+    if (status !== "upcoming") {
+      throw fail(400, "Só dá para mudar o horário de início antes do leilão começar.");
+    }
+    startsAt = new Date(body.startsAt);
+    if (Number.isNaN(startsAt.getTime())) throw fail(400, "Início inválido.");
+  }
+
+  const prevDurationMs = new Date(row.expires_at).getTime() - new Date(row.starts_at).getTime();
+  let expiresAt = new Date(startsAt.getTime() + Math.max(60_000, prevDurationMs));
+  if (body.durationMinutes != null) {
+    const durationMinutes = Number(body.durationMinutes);
+    if (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 7 * 24 * 60) {
+      throw fail(400, "Duração inválida.");
+    }
+    expiresAt = new Date(startsAt.getTime() + durationMinutes * 60 * 1000);
+  }
+
+  if (expiresAt.getTime() <= startsAt.getTime()) {
+    throw fail(400, "O fim precisa ser depois do início.");
+  }
+  if ((status === "live" || status === "paused") && expiresAt.getTime() <= Date.now()) {
+    throw fail(400, "A duração precisa deixar o leilão ainda aberto.");
+  }
+
+  let imageData = row.image_data;
+  if (Object.prototype.hasOwnProperty.call(body, "imageData")) {
+    imageData = normalizeImageData(body.imageData);
+  }
+
+  await pool.query(
+    `
+    UPDATE auctions
+    SET item_name = $2,
+        description = $3,
+        starting_bid = $4,
+        quantity = $5,
+        reset_minutes = $6,
+        starts_at = $7,
+        expires_at = $8,
+        image_data = $9
+    WHERE id = $1
+    `,
+    [
+      id,
+      itemName,
+      description,
+      startingBid,
+      quantity,
+      resetMinutes,
+      startsAt.toISOString(),
+      expiresAt.toISOString(),
+      imageData,
+    ],
+  );
+
+  return getAuction(id, actor, guildId);
 }
 
 export async function placeBid(actor, id, amount) {

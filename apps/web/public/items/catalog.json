@@ -1,0 +1,999 @@
+{
+  "items": [
+    {
+      "id": "resquicio-do-testamento-noturno",
+      "name": "Resquício do Testamento Noturno",
+      "image": "/items/resquicio-do-testamento-noturno.png"
+    },
+    {
+      "id": "bau-de-testamento-da-noite",
+      "name": "Baú de Testamento da Noite",
+      "image": "/items/bau-de-testamento-da-noite.png"
+    },
+    {
+      "id": "pagina-do-manual-de-armadura-heroico",
+      "name": "Página do Manual de Armadura Heroico",
+      "image": "/items/pagina-do-manual-de-armadura-heroico.png"
+    },
+    {
+      "id": "pagina-do-manual-de-arma-heroico",
+      "name": "Página do Manual de Arma Heroico",
+      "image": "/items/pagina-do-manual-de-arma-heroico.png"
+    },
+    {
+      "id": "manual-de-armadura-heroico",
+      "name": "Manual de Armadura Heroico",
+      "image": "/items/manual-de-armadura-heroico.png"
+    },
+    {
+      "id": "manual-de-arma-heroico",
+      "name": "Manual de Arma Heroico",
+      "image": "/items/manual-de-arma-heroico.png"
+    },
+    {
+      "id": "livro-recuperacao-pocao-ii-viper",
+      "name": "Livro de Habilidade: Aumento de Taxa de Recuperação de Poção II",
+      "image": "/items/livro-recuperacao-pocao-ii-viper.png"
+    },
+    {
+      "id": "livro-recuperacao-pocao-ii-bloodstained",
+      "name": "Livro de Habilidade: Aumento de Taxa de Recuperação de Poção II",
+      "image": "/items/livro-recuperacao-pocao-ii-bloodstained.png"
+    },
+    {
+      "id": "livro-recuperacao-pocao-ii-carnage",
+      "name": "Livro de Habilidade: Aumento de Taxa de Recuperação de Poção II",
+      "image": "/items/livro-recuperacao-pocao-ii-carnage.png"
+    },
+    {
+      "id": "livro-recuperacao-pocao-ii-grim-reaper",
+      "name": "Livro de Habilidade: Aumento de Taxa de Recuperação de Poção II",
+      "image": "/items/livro-recuperacao-pocao-ii-grim-reaper.png"
+    },
+    {
+      "id": "livro-recuperacao-pocao-ii-akasha",
+      "name": "Livro de Habilidade: Aumento de Taxa de Recuperação de Poção II",
+      "image": "/items/livro-recuperacao-pocao-ii-akasha.png"
+    },
+    {
+      "id": "arma-de-fogo-do-clarao-do-julgamento",
+      "name": "Arma de Fogo do Clarão do Julgamento",
+      "image": "/items/arma-de-fogo-do-clarao-do-julgamento.png"
+    },
+    {
+      "id": "espada-do-clarao-do-julgamento",
+      "name": "Espada do Clarão do Julgamento",
+      "image": "/items/espada-do-clarao-do-julgamento.png"
+    },
+    {
+      "id": "foice-do-clarao-do-julgamento",
+      "name": "Foice do Clarão do Julgamento",
+      "image": "/items/foice-do-clarao-do-julgamento.png"
+    },
+    {
+      "id": "orbe-do-clarao-do-julgamento",
+      "name": "Orbe do Clarão do Julgamento",
+      "image": "/items/orbe-do-clarao-do-julgamento.png"
+    },
+    {
+      "id": "tonfa-do-lampejo-do-julgamento",
+      "name": "Tonfa do Lampejo do Julgamento",
+      "image": "/items/tonfa-do-lampejo-do-julgamento.png"
+    },
+    {
+      "id": "elmo-do-ceifador-do-abismo",
+      "name": "Elmo do Ceifador do Abismo",
+      "image": "/items/elmo-do-ceifador-do-abismo.png"
+    },
+    {
+      "id": "botas-do-ceifador-do-abismo",
+      "name": "Botas do Ceifador do Abismo",
+      "image": "/items/botas-do-ceifador-do-abismo.png"
+    },
+    {
+      "id": "safira-gelida",
+      "name": "Safira Gélida",
+      "image": "/items/safira-gelida.png"
+    },
+    {
+      "id": "fragmento-de-acessorio-supremo",
+      "name": "Fragmento de Acessório Supremo",
+      "image": "/items/fragmento-de-acessorio-supremo.png"
+    },
+    {
+      "id": "fragmento-de-armadura-supremo",
+      "name": "Fragmento de Armadura Supremo",
+      "image": "/items/fragmento-de-armadura-supremo.png"
+    },
+    {
+      "id": "fragmento-de-arma-supremo",
+      "name": "Fragmento de Arma Supremo",
+      "image": "/items/fragmento-de-arma-supremo.png"
+    },
+    {
+      "id": "livro-golpe-vital-ii-viper",
+      "name": "Livro de Habilidade: Golpe Vital II",
+      "image": "/items/livro-golpe-vital-ii-viper.png"
+    },
+    {
+      "id": "livro-golpe-vital-ii-bloodstained",
+      "name": "Livro de Habilidade: Golpe Vital II",
+      "image": "/items/livro-golpe-vital-ii-bloodstained.png"
+    },
+    {
+      "id": "livro-golpe-vital-ii-carnage",
+      "name": "Livro de Habilidade: Golpe Vital II",
+      "image": "/items/livro-golpe-vital-ii-carnage.png"
+    },
+    {
+      "id": "livro-golpe-vital-ii-grim-reaper",
+      "name": "Livro de Habilidade: Golpe Vital II",
+      "image": "/items/livro-golpe-vital-ii-grim-reaper.png"
+    },
+    {
+      "id": "livro-golpe-vital-ii-akasha",
+      "name": "Livro de Habilidade: Golpe Vital II",
+      "image": "/items/livro-golpe-vital-ii-akasha.png"
+    },
+    {
+      "id": "arma-de-fogo-da-noite-carmesim",
+      "name": "Arma de Fogo da Noite Carmesim",
+      "image": "/items/arma-de-fogo-da-noite-carmesim.png"
+    },
+    {
+      "id": "arma-de-fogo-do-perseguidor-noturno",
+      "name": "Arma de Fogo do Perseguidor Noturno",
+      "image": "/items/arma-de-fogo-do-perseguidor-noturno.png"
+    },
+    {
+      "id": "arma-de-fogo-do-magistrado",
+      "name": "Arma de Fogo do Magistrado",
+      "image": "/items/arma-de-fogo-do-magistrado.png"
+    },
+    {
+      "id": "espada-da-noite-carmesim",
+      "name": "Espada da Noite Carmesim",
+      "image": "/items/espada-da-noite-carmesim.png"
+    },
+    {
+      "id": "espada-do-rastreador-nocturno",
+      "name": "Espada do Rastreador Nocturno",
+      "image": "/items/espada-do-rastreador-nocturno.png"
+    },
+    {
+      "id": "espada-do-magistrado",
+      "name": "Espada do Magistrado",
+      "image": "/items/espada-do-magistrado.png"
+    },
+    {
+      "id": "foice-da-noite-carmesim",
+      "name": "Foice da Noite Carmesim",
+      "image": "/items/foice-da-noite-carmesim.png"
+    },
+    {
+      "id": "foice-do-espreitador-nocturno",
+      "name": "Foice do Espreitador Nocturno",
+      "image": "/items/foice-do-espreitador-nocturno.png"
+    },
+    {
+      "id": "foice-do-magistrado",
+      "name": "Foice do Magistrado",
+      "image": "/items/foice-do-magistrado.png"
+    },
+    {
+      "id": "orbe-da-noite-carmesim",
+      "name": "Orbe da Noite Carmesim",
+      "image": "/items/orbe-da-noite-carmesim.png"
+    },
+    {
+      "id": "orbe-do-perseguidor-noturno",
+      "name": "Orbe do Perseguidor Noturno",
+      "image": "/items/orbe-do-perseguidor-noturno.png"
+    },
+    {
+      "id": "orbe-do-magistrado",
+      "name": "Orbe do Magistrado",
+      "image": "/items/orbe-do-magistrado.png"
+    },
+    {
+      "id": "tonfa-da-noite-carmesim",
+      "name": "Tonfa da Noite Carmesim",
+      "image": "/items/tonfa-da-noite-carmesim.png"
+    },
+    {
+      "id": "tonfa-do-perseguidor-noturno",
+      "name": "Tonfa do Perseguidor Noturno",
+      "image": "/items/tonfa-do-perseguidor-noturno.png"
+    },
+    {
+      "id": "tonfa-do-magistrado",
+      "name": "Tonfa do Magistrado",
+      "image": "/items/tonfa-do-magistrado.png"
+    },
+    {
+      "id": "elmo-da-noite-carmesim",
+      "name": "Elmo da Noite Carmesim",
+      "image": "/items/elmo-da-noite-carmesim.png"
+    },
+    {
+      "id": "elmo-da-sombra-do-luar",
+      "name": "Elmo da Sombra do Luar",
+      "image": "/items/elmo-da-sombra-do-luar.png"
+    },
+    {
+      "id": "armadura-corporal-da-noite-carmesim",
+      "name": "Armadura Corporal da Noite Carmesim",
+      "image": "/items/armadura-corporal-da-noite-carmesim.png"
+    },
+    {
+      "id": "armadura-corporal-da-sombra-do-luar",
+      "name": "Armadura Corporal da Sombra do Luar",
+      "image": "/items/armadura-corporal-da-sombra-do-luar.png"
+    },
+    {
+      "id": "luvas-da-sombra-do-luar",
+      "name": "Luvas da Sombra do Luar",
+      "image": "/items/luvas-da-sombra-do-luar.png"
+    },
+    {
+      "id": "botas-da-sombra-do-luar",
+      "name": "Botas da Sombra do Luar",
+      "image": "/items/botas-da-sombra-do-luar.png"
+    },
+    {
+      "id": "cinto-da-fenda-caotica",
+      "name": "Cinto da Fenda Caótica",
+      "image": "/items/cinto-da-fenda-caotica.png"
+    },
+    {
+      "id": "colar-de-espinhos-corrompidos",
+      "name": "Colar de Espinhos Corrompidos",
+      "image": "/items/colar-de-espinhos-corrompidos.png"
+    },
+    {
+      "id": "colar-da-fenda-caotica",
+      "name": "Colar da Fenda Caótica",
+      "image": "/items/colar-da-fenda-caotica.png"
+    },
+    {
+      "id": "brincos-de-espinho-corrompido",
+      "name": "Brincos de Espinho Corrompido",
+      "image": "/items/brincos-de-espinho-corrompido.png"
+    },
+    {
+      "id": "brincos-da-fenda-caotica",
+      "name": "Brincos da Fenda Caótica",
+      "image": "/items/brincos-da-fenda-caotica.png"
+    },
+    {
+      "id": "bracelete-da-fenda-caotica",
+      "name": "Bracelete da Fenda Caótica",
+      "image": "/items/bracelete-da-fenda-caotica.png"
+    },
+    {
+      "id": "anel-da-fenda-caotica",
+      "name": "Anel da Fenda Caótica",
+      "image": "/items/anel-da-fenda-caotica.png"
+    },
+    {
+      "id": "pagina-do-livro-de-habilidade-incomum",
+      "name": "Página do Livro de Habilidade Incomum",
+      "image": "/items/pagina-do-livro-de-habilidade-incomum.png"
+    },
+    {
+      "id": "peridoto",
+      "name": "Peridoto",
+      "image": "/items/peridoto.png"
+    },
+    {
+      "id": "orbe-magica-de-geena",
+      "name": "Orbe Mágica de Geena",
+      "image": "/items/orbe-magica-de-geena.png"
+    },
+    {
+      "id": "pagina-do-livro-de-habilidade",
+      "name": "Página do Livro de Habilidade",
+      "image": "/items/pagina-do-livro-de-habilidade.png"
+    },
+    {
+      "id": "lingote-de-ouro",
+      "name": "Lingote de Ouro",
+      "image": "/items/lingote-de-ouro.png"
+    },
+    {
+      "id": "pergaminho-sagrado-de-aprimoramento-de-armadura",
+      "name": "Pergaminho Sagrado de Aprimoramento de Armadura",
+      "image": "/items/pergaminho-sagrado-de-aprimoramento-de-armadura.png"
+    },
+    {
+      "id": "pergaminho-de-aprimoramento-de-armadura",
+      "name": "Pergaminho de Aprimoramento de Armadura",
+      "image": "/items/pergaminho-de-aprimoramento-de-armadura.png"
+    },
+    {
+      "id": "pergaminho-amaldicoado-de-fortalecimento-de-armadura",
+      "name": "Pergaminho Amaldiçoado de Fortalecimento de Armadura",
+      "image": "/items/pergaminho-amaldicoado-de-fortalecimento-de-armadura.png"
+    },
+    {
+      "id": "crueldade-do-rei-ensanguentado",
+      "name": "Crueldade do Rei Ensanguentado",
+      "image": "/items/crueldade-do-rei-ensanguentado.png"
+    },
+    {
+      "id": "resistencia-do-inferno",
+      "name": "Resistência do Inferno",
+      "image": "/items/resistencia-do-inferno.png"
+    },
+    {
+      "id": "ira-do-inferno",
+      "name": "Ira do Inferno",
+      "image": "/items/ira-do-inferno.png"
+    },
+    {
+      "id": "pagina-do-manual-de-acessorio-heroico-bracelete",
+      "name": "Página do Manual de Acessório Heroico - Bracelete",
+      "image": "/items/pagina-do-manual-de-acessorio-heroico-bracelete.png"
+    },
+    {
+      "id": "pagina-do-manual-de-acessorio-heroico-brincos",
+      "name": "Página do Manual de Acessório Heroico - Brincos",
+      "image": "/items/pagina-do-manual-de-acessorio-heroico-brincos.png"
+    },
+    {
+      "id": "manual-de-acessorio-heroico-bracelete",
+      "name": "Manual de Acessório Heroico - Bracelete",
+      "image": "/items/manual-de-acessorio-heroico-bracelete.png"
+    },
+    {
+      "id": "manual-de-acessorio-heroico-brincos",
+      "name": "Manual de Acessório Heroico - Brincos",
+      "image": "/items/manual-de-acessorio-heroico-brincos.png"
+    },
+    {
+      "id": "livro-aprimoramento-poder-corpo-a-corpo-iii-viper",
+      "name": "Livro de Habilidade: Aprimoramento de Poder Corpo a Corpo III",
+      "image": "/items/livro-aprimoramento-poder-corpo-a-corpo-iii-viper.png"
+    },
+    {
+      "id": "livro-aprimoramento-poder-corpo-a-corpo-iii-bloodstained",
+      "name": "Livro de Habilidade: Aprimoramento de Poder Corpo a Corpo III",
+      "image": "/items/livro-aprimoramento-poder-corpo-a-corpo-iii-bloodstained.png"
+    },
+    {
+      "id": "livro-aprimoramento-poder-a-distancia-iii-carnage",
+      "name": "Livro de Habilidade: Aprimoramento de Poder à Distância III",
+      "image": "/items/livro-aprimoramento-poder-a-distancia-iii-carnage.png"
+    },
+    {
+      "id": "livro-aprimoramento-poder-corpo-a-corpo-iii-grim-reaper",
+      "name": "Livro de Habilidade: Aprimoramento de Poder Corpo a Corpo III",
+      "image": "/items/livro-aprimoramento-poder-corpo-a-corpo-iii-grim-reaper.png"
+    },
+    {
+      "id": "livro-aprimoramento-poder-magico-iii-akasha",
+      "name": "Livro de Habilidade: Aprimoramento de Poder Mágico III",
+      "image": "/items/livro-aprimoramento-poder-magico-iii-akasha.png"
+    },
+    {
+      "id": "arma-de-fogo-do-sopro-do-inferno",
+      "name": "Arma de Fogo do Sopro do Inferno",
+      "image": "/items/arma-de-fogo-do-sopro-do-inferno.png"
+    },
+    {
+      "id": "espada-do-sopro-do-inferno",
+      "name": "Espada do Sopro do Inferno",
+      "image": "/items/espada-do-sopro-do-inferno.png"
+    },
+    {
+      "id": "foice-do-sopro-do-inferno",
+      "name": "Foice do Sopro do Inferno",
+      "image": "/items/foice-do-sopro-do-inferno.png"
+    },
+    {
+      "id": "orbe-do-sopro-do-inferno",
+      "name": "Orbe do Sopro do Inferno",
+      "image": "/items/orbe-do-sopro-do-inferno.png"
+    },
+    {
+      "id": "tonfa-do-sopro-do-inferno",
+      "name": "Tonfa do Sopro do Inferno",
+      "image": "/items/tonfa-do-sopro-do-inferno.png"
+    },
+    {
+      "id": "elmo-do-sopro-do-inferno",
+      "name": "Elmo do Sopro do Inferno",
+      "image": "/items/elmo-do-sopro-do-inferno.png"
+    },
+    {
+      "id": "armadura-corporal-do-ceifador-do-abismo",
+      "name": "Armadura Corporal do Ceifador do Abismo",
+      "image": "/items/armadura-corporal-do-ceifador-do-abismo.png"
+    },
+    {
+      "id": "luvas-do-sopro-do-inferno",
+      "name": "Luvas do Sopro do Inferno",
+      "image": "/items/luvas-do-sopro-do-inferno.png"
+    },
+    {
+      "id": "brincos-da-rainha-do-abismo",
+      "name": "Brincos da Rainha do Abismo",
+      "image": "/items/brincos-da-rainha-do-abismo.png"
+    },
+    {
+      "id": "bracelete-da-rainha-do-abismo",
+      "name": "Bracelete da Rainha do Abismo",
+      "image": "/items/bracelete-da-rainha-do-abismo.png"
+    },
+    {
+      "id": "livro-aprimoramento-dano-bonus-i-viper",
+      "name": "Livro de Habilidade: Aprimoramento de Dano Bônus I",
+      "image": "/items/livro-aprimoramento-dano-bonus-i-viper.png"
+    },
+    {
+      "id": "livro-aprimoramento-dano-bonus-i-bloodstained",
+      "name": "Livro de Habilidade: Aprimoramento de Dano Bônus I",
+      "image": "/items/livro-aprimoramento-dano-bonus-i-bloodstained.png"
+    },
+    {
+      "id": "livro-aprimoramento-dano-bonus-i-carnage",
+      "name": "Livro de Habilidade: Aprimoramento de Dano Bônus I",
+      "image": "/items/livro-aprimoramento-dano-bonus-i-carnage.png"
+    },
+    {
+      "id": "livro-aprimoramento-dano-bonus-i-grim-reaper",
+      "name": "Livro de Habilidade: Aprimoramento de Dano Bônus I",
+      "image": "/items/livro-aprimoramento-dano-bonus-i-grim-reaper.png"
+    },
+    {
+      "id": "livro-aprimoramento-dano-bonus-i-akasha",
+      "name": "Livro de Habilidade: Aprimoramento de Dano Bônus I",
+      "image": "/items/livro-aprimoramento-dano-bonus-i-akasha.png"
+    },
+    {
+      "id": "elmo-do-rastreador-noturno",
+      "name": "Elmo do Rastreador Noturno",
+      "image": "/items/elmo-do-rastreador-noturno.png"
+    },
+    {
+      "id": "armadura-corporal-do-perseguidor-noturno",
+      "name": "Armadura Corporal do Perseguidor Noturno",
+      "image": "/items/armadura-corporal-do-perseguidor-noturno.png"
+    },
+    {
+      "id": "luvas-do-perseguidor-noturno",
+      "name": "Luvas do Perseguidor Noturno",
+      "image": "/items/luvas-do-perseguidor-noturno.png"
+    },
+    {
+      "id": "botas-do-perseguidor-noturno",
+      "name": "Botas do Perseguidor Noturno",
+      "image": "/items/botas-do-perseguidor-noturno.png"
+    },
+    {
+      "id": "cinto-do-lorde-carmesim",
+      "name": "Cinto do Lorde Carmesim",
+      "image": "/items/cinto-do-lorde-carmesim.png"
+    },
+    {
+      "id": "colar-do-lorde-carmesim",
+      "name": "Colar do Lorde Carmesim",
+      "image": "/items/colar-do-lorde-carmesim.png"
+    },
+    {
+      "id": "brincos-do-senhor-carmesim",
+      "name": "Brincos do Senhor Carmesim",
+      "image": "/items/brincos-do-senhor-carmesim.png"
+    },
+    {
+      "id": "bracelete-do-senhor-carmesim",
+      "name": "Bracelete do Senhor Carmesim",
+      "image": "/items/bracelete-do-senhor-carmesim.png"
+    },
+    {
+      "id": "anel-de-espinho-corrompido",
+      "name": "Anel de Espinho Corrompido",
+      "image": "/items/anel-de-espinho-corrompido.png"
+    },
+    {
+      "id": "anel-do-senhor-carmesim",
+      "name": "Anel do Senhor Carmesim",
+      "image": "/items/anel-do-senhor-carmesim.png"
+    },
+    {
+      "id": "pagina-do-manual-de-acessorio-heroico-cinto",
+      "name": "Página do Manual de Acessório Heroico - Cinto",
+      "image": "/items/pagina-do-manual-de-acessorio-heroico-cinto.png"
+    },
+    {
+      "id": "manual-de-acessorio-heroico-cinto",
+      "name": "Manual de Acessório Heroico - Cinto",
+      "image": "/items/manual-de-acessorio-heroico-cinto.png"
+    },
+    {
+      "id": "livro-aprimoramento-resistencia-a-dano-viper",
+      "name": "Livro de Habilidade: Aprimoramento de Resistência a Dano",
+      "image": "/items/livro-aprimoramento-resistencia-a-dano-viper.png"
+    },
+    {
+      "id": "livro-aprimoramento-resistencia-a-dano-bloodstained",
+      "name": "Livro de Habilidade: Aprimoramento de Resistência a Dano",
+      "image": "/items/livro-aprimoramento-resistencia-a-dano-bloodstained.png"
+    },
+    {
+      "id": "livro-aprimoramento-resistencia-a-dano-carnage",
+      "name": "Livro de Habilidade: Aprimoramento de Resistência a Dano",
+      "image": "/items/livro-aprimoramento-resistencia-a-dano-carnage.png"
+    },
+    {
+      "id": "livro-aprimoramento-resistencia-a-dano-grim-reaper",
+      "name": "Livro de Habilidade: Aprimoramento de Resistência a Dano",
+      "image": "/items/livro-aprimoramento-resistencia-a-dano-grim-reaper.png"
+    },
+    {
+      "id": "livro-aprimoramento-resistencia-a-dano-akasha",
+      "name": "Livro de Habilidade: Aprimoramento de Resistência a Dano",
+      "image": "/items/livro-aprimoramento-resistencia-a-dano-akasha.png"
+    },
+    {
+      "id": "luvas-do-ceifador-do-abismo",
+      "name": "Luvas do Ceifador do Abismo",
+      "image": "/items/luvas-do-ceifador-do-abismo.png"
+    },
+    {
+      "id": "botas-do-sopro-do-inferno",
+      "name": "Botas do Sopro do Inferno",
+      "image": "/items/botas-do-sopro-do-inferno.png"
+    },
+    {
+      "id": "cinto-da-rainha-do-abismo",
+      "name": "Cinto da Rainha do Abismo",
+      "image": "/items/cinto-da-rainha-do-abismo.png"
+    },
+    {
+      "id": "pagina-do-livro-de-habilidade-rara",
+      "name": "Página do Livro de Habilidade Rara",
+      "image": "/items/pagina-do-livro-de-habilidade-rara.png"
+    },
+    {
+      "id": "cinto-do-espinho-corrompido",
+      "name": "Cinto do Espinho Corrompido",
+      "image": "/items/cinto-do-espinho-corrompido.png"
+    },
+    {
+      "id": "pedra-da-evolucao",
+      "name": "Pedra da Evolução",
+      "image": "/items/pedra-da-evolucao.png"
+    },
+    {
+      "id": "pagina-do-manual-de-acessorio-heroico-anel",
+      "name": "Página do Manual de Acessório Heroico - Anel",
+      "image": "/items/pagina-do-manual-de-acessorio-heroico-anel.png"
+    },
+    {
+      "id": "pagina-do-manual-de-acessorio-heroico-colar",
+      "name": "Página do Manual de Acessório Heroico - Colar",
+      "image": "/items/pagina-do-manual-de-acessorio-heroico-colar.png"
+    },
+    {
+      "id": "manual-de-acessorio-heroico-anel",
+      "name": "Manual de Acessório Heroico - Anel",
+      "image": "/items/manual-de-acessorio-heroico-anel.png"
+    },
+    {
+      "id": "manual-de-acessorio-heroico-colar",
+      "name": "Manual de Acessório Heroico - Colar",
+      "image": "/items/manual-de-acessorio-heroico-colar.png"
+    },
+    {
+      "id": "coroa-da-gloria",
+      "name": "Coroa da Glória",
+      "image": "/items/coroa-da-gloria.png"
+    },
+    {
+      "id": "livro-arma-polida-viper",
+      "name": "Livro de Habilidade: Arma Polida",
+      "image": "/items/livro-arma-polida-viper.png"
+    },
+    {
+      "id": "livro-aprimoramento-de-ataque-basico-ii-viper",
+      "name": "Livro de Habilidade: Aprimoramento de Ataque Básico II",
+      "image": "/items/livro-aprimoramento-de-ataque-basico-ii-viper.png"
+    },
+    {
+      "id": "livro-resistencia-a-incapacitacao-viper",
+      "name": "Livro de Habilidade: Resistência a Incapacitação",
+      "image": "/items/livro-resistencia-a-incapacitacao-viper.png"
+    },
+    {
+      "id": "livro-arma-polida-bloodstained",
+      "name": "Livro de Habilidade: Arma Polida",
+      "image": "/items/livro-arma-polida-bloodstained.png"
+    },
+    {
+      "id": "livro-aprimoramento-de-ataque-basico-ii-bloodstained",
+      "name": "Livro de Habilidade: Aprimoramento de Ataque Básico II",
+      "image": "/items/livro-aprimoramento-de-ataque-basico-ii-bloodstained.png"
+    },
+    {
+      "id": "livro-resistencia-a-incapacitacao-bloodstained",
+      "name": "Livro de Habilidade: Resistência a Incapacitação",
+      "image": "/items/livro-resistencia-a-incapacitacao-bloodstained.png"
+    },
+    {
+      "id": "livro-arma-polida-carnage",
+      "name": "Livro de Habilidade: Arma Polida",
+      "image": "/items/livro-arma-polida-carnage.png"
+    },
+    {
+      "id": "livro-aprimoramento-de-ataque-basico-ii-carnage",
+      "name": "Livro de Habilidade: Aprimoramento de Ataque Básico II",
+      "image": "/items/livro-aprimoramento-de-ataque-basico-ii-carnage.png"
+    },
+    {
+      "id": "livro-resistencia-a-incapacitacao-carnage",
+      "name": "Livro de Habilidade: Resistência a Incapacitação",
+      "image": "/items/livro-resistencia-a-incapacitacao-carnage.png"
+    },
+    {
+      "id": "livro-arma-polida-grim-reaper",
+      "name": "Livro de Habilidade: Arma Polida",
+      "image": "/items/livro-arma-polida-grim-reaper.png"
+    },
+    {
+      "id": "livro-aprimoramento-de-ataque-basico-ii-grim-reaper",
+      "name": "Livro de Habilidade: Aprimoramento de Ataque Básico II",
+      "image": "/items/livro-aprimoramento-de-ataque-basico-ii-grim-reaper.png"
+    },
+    {
+      "id": "livro-resistencia-a-incapacitacao-grim-reaper",
+      "name": "Livro de Habilidade: Resistência a Incapacitação",
+      "image": "/items/livro-resistencia-a-incapacitacao-grim-reaper.png"
+    },
+    {
+      "id": "livro-arma-polida-akasha",
+      "name": "Livro de Habilidade: Arma Polida",
+      "image": "/items/livro-arma-polida-akasha.png"
+    },
+    {
+      "id": "livro-aprimoramento-de-ataque-basico-ii-akasha",
+      "name": "Livro de Habilidade: Aprimoramento de Ataque Básico II",
+      "image": "/items/livro-aprimoramento-de-ataque-basico-ii-akasha.png"
+    },
+    {
+      "id": "livro-resistencia-a-incapacitacao-akasha",
+      "name": "Livro de Habilidade: Resistência a Incapacitação",
+      "image": "/items/livro-resistencia-a-incapacitacao-akasha.png"
+    },
+    {
+      "id": "armadura-corporal-do-sopro-do-inferno",
+      "name": "Armadura Corporal do Sopro do Inferno",
+      "image": "/items/armadura-corporal-do-sopro-do-inferno.png"
+    },
+    {
+      "id": "cinto-do-rei-ensanguentado",
+      "name": "Cinto do Rei Ensanguentado",
+      "image": "/items/cinto-do-rei-ensanguentado.png"
+    },
+    {
+      "id": "colar-do-rei-ensanguentado",
+      "name": "Colar do Rei Ensanguentado",
+      "image": "/items/colar-do-rei-ensanguentado.png"
+    },
+    {
+      "id": "colar-da-rainha-do-abismo",
+      "name": "Colar da Rainha do Abismo",
+      "image": "/items/colar-da-rainha-do-abismo.png"
+    },
+    {
+      "id": "brincos-do-rei-ensanguentado",
+      "name": "Brincos do Rei Ensanguentado",
+      "image": "/items/brincos-do-rei-ensanguentado.png"
+    },
+    {
+      "id": "bracelete-do-rei-ensanguentado",
+      "name": "Bracelete do Rei Ensanguentado",
+      "image": "/items/bracelete-do-rei-ensanguentado.png"
+    },
+    {
+      "id": "anel-do-rei-ensanguentado",
+      "name": "Anel do Rei Ensanguentado",
+      "image": "/items/anel-do-rei-ensanguentado.png"
+    },
+    {
+      "id": "anel-da-rainha-do-abismo",
+      "name": "Anel da Rainha do Abismo",
+      "image": "/items/anel-da-rainha-do-abismo.png"
+    },
+    {
+      "id": "livro-aprimoramento-poder-corpo-a-corpo-ii",
+      "name": "Livro de Habilidade: Aprimoramento de Poder Corpo a Corpo II",
+      "image": "/items/livro-aprimoramento-poder-corpo-a-corpo-ii.png"
+    },
+    {
+      "id": "livro-aprimoramento-de-arma-i",
+      "name": "Livro de Habilidade: Aprimoramento de Arma I",
+      "image": "/items/livro-aprimoramento-de-arma-i.png"
+    },
+    {
+      "id": "livro-aprimoramento-poder-corpo-a-corpo-ii-2",
+      "name": "Livro de Habilidade: Aprimoramento de Poder Corpo a Corpo II",
+      "image": "/items/livro-aprimoramento-poder-corpo-a-corpo-ii-2.png"
+    },
+    {
+      "id": "livro-aprimoramento-de-arma-i-2",
+      "name": "Livro de Habilidade: Aprimoramento de Arma I",
+      "image": "/items/livro-aprimoramento-de-arma-i-2.png"
+    },
+    {
+      "id": "livro-aprimoramento-poder-a-distancia-ii",
+      "name": "Livro de Habilidade: Aprimoramento de Poder à Distância II",
+      "image": "/items/livro-aprimoramento-poder-a-distancia-ii.png"
+    },
+    {
+      "id": "livro-aprimoramento-de-arma-i-3",
+      "name": "Livro de Habilidade: Aprimoramento de Arma I",
+      "image": "/items/livro-aprimoramento-de-arma-i-3.png"
+    },
+    {
+      "id": "livro-aprimoramento-poder-corpo-a-corpo-ii-3",
+      "name": "Livro de Habilidade: Aprimoramento de Poder Corpo a Corpo II",
+      "image": "/items/livro-aprimoramento-poder-corpo-a-corpo-ii-3.png"
+    },
+    {
+      "id": "livro-aprimoramento-de-arma-i-4",
+      "name": "Livro de Habilidade: Aprimoramento de Arma I",
+      "image": "/items/livro-aprimoramento-de-arma-i-4.png"
+    },
+    {
+      "id": "livro-aprimoramento-poder-magico-ii",
+      "name": "Livro de Habilidade: Aprimoramento de Poder Mágico II",
+      "image": "/items/livro-aprimoramento-poder-magico-ii.png"
+    },
+    {
+      "id": "livro-aprimoramento-de-arma-i-5",
+      "name": "Livro de Habilidade: Aprimoramento de Arma I",
+      "image": "/items/livro-aprimoramento-de-arma-i-5.png"
+    },
+    {
+      "id": "arma-de-fogo-do-portador-da-dor",
+      "name": "Arma de Fogo do Portador da Dor",
+      "image": "/items/arma-de-fogo-do-portador-da-dor.png"
+    },
+    {
+      "id": "espada-do-portador-da-dor",
+      "name": "Espada do Portador da Dor",
+      "image": "/items/espada-do-portador-da-dor.png"
+    },
+    {
+      "id": "foice-do-portador-da-dor",
+      "name": "Foice do Portador da Dor",
+      "image": "/items/foice-do-portador-da-dor.png"
+    },
+    {
+      "id": "orbe-do-portador-da-dor",
+      "name": "Orbe do Portador da Dor",
+      "image": "/items/orbe-do-portador-da-dor.png"
+    },
+    {
+      "id": "tonfa-do-portador-da-dor",
+      "name": "Tonfa do Portador da Dor",
+      "image": "/items/tonfa-do-portador-da-dor.png"
+    },
+    {
+      "id": "elmo-do-portador-da-dor",
+      "name": "Elmo do Portador da Dor",
+      "image": "/items/elmo-do-portador-da-dor.png"
+    },
+    {
+      "id": "armadura-corporal-do-traz-dor",
+      "name": "Armadura Corporal do Traz-Dor",
+      "image": "/items/armadura-corporal-do-traz-dor.png"
+    },
+    {
+      "id": "luvas-do-portador-da-dor",
+      "name": "Luvas do Portador da Dor",
+      "image": "/items/luvas-do-portador-da-dor.png"
+    },
+    {
+      "id": "luvas-da-noite-carmesim",
+      "name": "Luvas da Noite Carmesim",
+      "image": "/items/luvas-da-noite-carmesim.png"
+    },
+    {
+      "id": "botas-do-portador-da-dor",
+      "name": "Botas do Portador da Dor",
+      "image": "/items/botas-do-portador-da-dor.png"
+    },
+    {
+      "id": "botas-da-noite-carmesim",
+      "name": "Botas da Noite Carmesim",
+      "image": "/items/botas-da-noite-carmesim.png"
+    },
+    {
+      "id": "cinto-do-sopro-do-abismo",
+      "name": "Cinto do Sopro do Abismo",
+      "image": "/items/cinto-do-sopro-do-abismo.png"
+    },
+    {
+      "id": "brasao-do-selo-abissal",
+      "name": "Brasão do Selo Abissal",
+      "image": "/items/brasao-do-selo-abissal.png"
+    },
+    {
+      "id": "brasao-do-trovao",
+      "name": "Brasão do Trovão",
+      "image": "/items/brasao-do-trovao.png"
+    },
+    {
+      "id": "colar-do-sopro-do-abismo",
+      "name": "Colar do Sopro do Abismo",
+      "image": "/items/colar-do-sopro-do-abismo.png"
+    },
+    {
+      "id": "brincos-do-sopro-do-abismo",
+      "name": "Brincos do Sopro do Abismo",
+      "image": "/items/brincos-do-sopro-do-abismo.png"
+    },
+    {
+      "id": "pergaminho-abencoado-de-fortalecimento-de-acessorio",
+      "name": "Pergaminho Abençoado de Fortalecimento de Acessório",
+      "image": "/items/pergaminho-abencoado-de-fortalecimento-de-acessorio.png"
+    },
+    {
+      "id": "pergaminho-amaldicoado-de-fortalecimento-de-acessorio",
+      "name": "Pergaminho Amaldiçoado de Fortalecimento de Acessório",
+      "image": "/items/pergaminho-amaldicoado-de-fortalecimento-de-acessorio.png"
+    },
+    {
+      "id": "pergaminho-sagrado-de-aprimoramento-de-arma",
+      "name": "Pergaminho Sagrado de Aprimoramento de Arma",
+      "image": "/items/pergaminho-sagrado-de-aprimoramento-de-arma.png"
+    },
+    {
+      "id": "pergaminho-amaldicoado-de-fortalecimento-de-arma",
+      "name": "Pergaminho Amaldiçoado de Fortalecimento de Arma",
+      "image": "/items/pergaminho-amaldicoado-de-fortalecimento-de-arma.png"
+    },
+    {
+      "id": "pergaminho-de-aprimoramento-de-acessorio",
+      "name": "Pergaminho de Aprimoramento de Acessório",
+      "image": "/items/pergaminho-de-aprimoramento-de-acessorio.png"
+    },
+    {
+      "id": "livro-golpe-vital-iii",
+      "name": "Livro de Habilidade: Golpe Vital III",
+      "image": "/items/livro-golpe-vital-iii.png"
+    },
+    {
+      "id": "livro-golpe-vital-iii-2",
+      "name": "Livro de Habilidade: Golpe Vital III",
+      "image": "/items/livro-golpe-vital-iii-2.png"
+    },
+    {
+      "id": "livro-golpe-vital-iii-3",
+      "name": "Livro de Habilidade: Golpe Vital III",
+      "image": "/items/livro-golpe-vital-iii-3.png"
+    },
+    {
+      "id": "livro-golpe-vital-iii-4",
+      "name": "Livro de Habilidade: Golpe Vital III",
+      "image": "/items/livro-golpe-vital-iii-4.png"
+    },
+    {
+      "id": "livro-golpe-vital-iii-5",
+      "name": "Livro de Habilidade: Golpe Vital III",
+      "image": "/items/livro-golpe-vital-iii-5.png"
+    },
+    {
+      "id": "bracelete-de-espinho-corrompido",
+      "name": "Bracelete de Espinho Corrompido",
+      "image": "/items/bracelete-de-espinho-corrompido.png"
+    },
+    {
+      "id": "pergaminho-de-aprimoramento-de-arma",
+      "name": "Pergaminho de Aprimoramento de Arma",
+      "image": "/items/pergaminho-de-aprimoramento-de-arma.png"
+    },
+    {
+      "id": "bracelete-do-sopro-do-abismo",
+      "name": "Bracelete do Sopro do Abismo",
+      "image": "/items/bracelete-do-sopro-do-abismo.png"
+    },
+    {
+      "id": "anel-do-sopro-do-abismo",
+      "name": "Anel do Sopro do Abismo",
+      "image": "/items/anel-do-sopro-do-abismo.png"
+    },
+    {
+      "id": "livro-aprimoramento-poder-corpo-a-corpo-ii-akasha",
+      "name": "Livro de Habilidade: Aprimoramento de Poder Corpo a Corpo II",
+      "image": "/items/livro-aprimoramento-poder-corpo-a-corpo-ii-akasha.png"
+    },
+    {
+      "id": "livro-aprimoramento-poder-corpo-a-corpo-ii-bloodstained",
+      "name": "Livro de Habilidade: Aprimoramento de Poder Corpo a Corpo II",
+      "image": "/items/livro-aprimoramento-poder-corpo-a-corpo-ii-bloodstained.png"
+    },
+    {
+      "id": "livro-aprimoramento-poder-a-distancia-ii-carnage",
+      "name": "Livro de Habilidade: Aprimoramento de Poder à Distância II",
+      "image": "/items/livro-aprimoramento-poder-a-distancia-ii-carnage.png"
+    },
+    {
+      "id": "livro-aprimoramento-poder-corpo-a-corpo-ii-grim-reaper",
+      "name": "Livro de Habilidade: Aprimoramento de Poder Corpo a Corpo II",
+      "image": "/items/livro-aprimoramento-poder-corpo-a-corpo-ii-grim-reaper.png"
+    },
+    {
+      "id": "livro-aprimoramento-poder-magico-ii-viper",
+      "name": "Livro de Habilidade: Aprimoramento de Poder Mágico II",
+      "image": "/items/livro-aprimoramento-poder-magico-ii-viper.png"
+    },
+    {
+      "id": "livro-aumento-de-dano-contra-chefe-i-akasha",
+      "name": "Livro de Habilidade: Aumento de Dano contra Chefe I",
+      "image": "/items/livro-aumento-de-dano-contra-chefe-i-akasha.png"
+    },
+    {
+      "id": "livro-aumento-de-dano-contra-chefe-i-bloodstained",
+      "name": "Livro de Habilidade: Aumento de Dano contra Chefe I",
+      "image": "/items/livro-aumento-de-dano-contra-chefe-i-bloodstained.png"
+    },
+    {
+      "id": "livro-aumento-de-dano-contra-chefe-i-carnage",
+      "name": "Livro de Habilidade: Aumento de Dano contra Chefe I",
+      "image": "/items/livro-aumento-de-dano-contra-chefe-i-carnage.png"
+    },
+    {
+      "id": "livro-aumento-de-dano-contra-chefe-i-grim-reaper",
+      "name": "Livro de Habilidade: Aumento de Dano contra Chefe I",
+      "image": "/items/livro-aumento-de-dano-contra-chefe-i-grim-reaper.png"
+    },
+    {
+      "id": "livro-aumento-de-dano-contra-chefe-i-viper",
+      "name": "Livro de Habilidade: Aumento de Dano contra Chefe I",
+      "image": "/items/livro-aumento-de-dano-contra-chefe-i-viper.png"
+    },
+    {
+      "id": "fragmento-de-acessorio-superior",
+      "name": "Fragmento de Acessório Superior",
+      "image": "/items/fragmento-de-acessorio-superior.png"
+    },
+    {
+      "id": "fragmento-de-armadura-superior",
+      "name": "Fragmento de Armadura Superior",
+      "image": "/items/fragmento-de-armadura-superior.png"
+    },
+    {
+      "id": "fragmento-de-arma-superior",
+      "name": "Fragmento de Arma Superior",
+      "image": "/items/fragmento-de-arma-superior.png"
+    },
+    {
+      "id": "livro-aumento-de-esquiva-i-akasha",
+      "name": "Livro de Habilidade: Aumento de Esquiva I",
+      "image": "/items/livro-aumento-de-esquiva-i-akasha.png"
+    },
+    {
+      "id": "livro-aumento-de-esquiva-i-bloodstained",
+      "name": "Livro de Habilidade: Aumento de Esquiva I",
+      "image": "/items/livro-aumento-de-esquiva-i-bloodstained.png"
+    },
+    {
+      "id": "livro-aumento-de-esquiva-i-carnage",
+      "name": "Livro de Habilidade: Aumento de Esquiva I",
+      "image": "/items/livro-aumento-de-esquiva-i-carnage.png"
+    },
+    {
+      "id": "livro-aumento-de-esquiva-i-grim-reaper",
+      "name": "Livro de Habilidade: Aumento de Esquiva I",
+      "image": "/items/livro-aumento-de-esquiva-i-grim-reaper.png"
+    },
+    {
+      "id": "livro-aumento-de-esquiva-i-viper",
+      "name": "Livro de Habilidade: Aumento de Esquiva I",
+      "image": "/items/livro-aumento-de-esquiva-i-viper.png"
+    }
+  ]
+}

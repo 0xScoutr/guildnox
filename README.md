@@ -1,6 +1,6 @@
-# guildchapa
+# guildchapa / Guildnox
 
-Hall da guilda **guildchapa** para o jogo **Vampir**. A primeira versão entra com Discord, mostra o painel da guilda e a lista de membros.
+Hall da guilda (produção em [guildnox.app](https://guildnox.app)). Login com Discord, leilão, atividades, ranking e gestão de membros.
 
 | Parte | Onde publica | Pasta |
 |---|---|---|
@@ -9,6 +9,16 @@ Hall da guilda **guildchapa** para o jogo **Vampir**. A primeira versão entra c
 | Código | GitHub | raiz |
 
 O site e a API ficam em endereços diferentes. O navegador guarda a sessão num cookie do domínio da API.
+
+## Colaboração (issues e PRs)
+
+Queremos contribuições via GitHub:
+
+1. Abra uma **issue** com a ideia ou o bug.
+2. Envie um **pull request** com a correção/melhoria.
+3. O dono revisa e aprova o merge se estiver ok.
+
+**Deploy não é automático.** Merge no `main` **não** publica o site. Só o dono sobe para produção quando decidir. Veja [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Discord
 

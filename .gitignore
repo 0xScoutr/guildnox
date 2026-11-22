@@ -6,3 +6,12 @@ dist/
 .vercel/
 .railway/
 *.log
+apps/api/stdout
+apps/api/{console.error(e)
+assets/
+/mapa-geena-*.png
+*.pem
+*.key
+credentials*.json
+.DS_Store
+Thumbs.db
