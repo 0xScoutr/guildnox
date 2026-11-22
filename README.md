@@ -1,4 +1,4 @@
-# guildchapa / Guildnox
+# Guildnox
 
 Hall da guilda (produção em [guildnox.app](https://guildnox.app)). Login com Discord, leilão, atividades, ranking e gestão de membros.
 
@@ -24,7 +24,7 @@ Queremos contribuições via GitHub:
 
 O botão de entrar só funciona depois de criar um aplicativo em [Discord Developer Portal](https://discord.com/developers/applications):
 
-1. Crie um aplicativo chamado `guildchapa`.
+1. Crie um aplicativo chamado `Guildnox` (ou o nome que preferir no Discord).
 2. Em OAuth2, copie o Client ID e o Client Secret.
 3. Adicione o redirect `https://SEU-DOMINIO-DA-API/auth/discord/callback`.
 4. Coloque `DISCORD_CLIENT_ID` e `DISCORD_CLIENT_SECRET` nas variáveis da API no Railway.
