@@ -66,16 +66,22 @@ export async function migrateActivitySchedules() {
     CREATE TABLE IF NOT EXISTS activity_schedule_skips (
       schedule_id BIGINT NOT NULL,
       starts_at TIMESTAMPTZ NOT NULL,
+      guild_id BIGINT,
+      name_key TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       PRIMARY KEY (schedule_id, starts_at)
     )
   `);
   await pool.query(`
+    CREATE INDEX IF NOT EXISTS activity_schedule_skips_guild_name
+    ON activity_schedule_skips (guild_id, name_key, starts_at)
+  `);
+  await pool.query(`
     CREATE OR REPLACE FUNCTION guildnox_schedule_skip() RETURNS trigger AS $$
     BEGIN
       IF OLD.schedule_id IS NOT NULL THEN
-        INSERT INTO activity_schedule_skips (schedule_id, starts_at)
-        VALUES (OLD.schedule_id, OLD.starts_at)
+        INSERT INTO activity_schedule_skips (schedule_id, starts_at, guild_id, name_key)
+        VALUES (OLD.schedule_id, OLD.starts_at, OLD.guild_id, lower(OLD.name))
         ON CONFLICT DO NOTHING;
       END IF;
       RETURN OLD;
@@ -368,9 +374,12 @@ function insertDue(client) {
       AND occ.dow = ANY(s.weekdays)
       AND occ.starts_at + make_interval(mins => s.duration_minutes) > now() + interval '1 minute'
       AND occ.starts_at <= now() + make_interval(mins => $1)
+      -- Cancelado por um oficial: vale para esta agenda e para outra igual (mesmo boss
+      -- e horário na guilda), senão a outra recriaria o boss cancelado.
       AND NOT EXISTS (
         SELECT 1 FROM activity_schedule_skips k
-        WHERE k.schedule_id = s.id AND k.starts_at = occ.starts_at
+        WHERE k.starts_at = occ.starts_at
+          AND (k.schedule_id = s.id OR (k.guild_id = s.guild_id AND k.name_key = lower(s.name)))
       )
       AND NOT EXISTS (
         SELECT 1 FROM activities a

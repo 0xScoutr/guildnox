@@ -206,7 +206,7 @@ export function openAgenda(api, onChange) {
       showError(err.message);
     } finally {
       button.disabled = false;
-      await changed();
+      await changed().catch((err) => showError(err.message));
     }
   }
 
