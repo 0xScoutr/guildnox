@@ -284,8 +284,16 @@ async function findMemberByQuery(query) {
   return rows[0] || null;
 }
 
+/** Só quem já é de uma guilda (ou oficial) mexe com piloto: login do Discord sozinho não basta. */
+function assertInGuild(actor) {
+  if (!isOfficer(actor) && actor?.guild_id == null) {
+    throw fail(403, "Entre numa guilda para vincular piloto.");
+  }
+}
+
 export async function listPilotCandidates(actor, ownerDiscordId = null) {
   if (!actor?.discord_id) throw fail(401, "Faça login para continuar.");
+  assertInGuild(actor);
   let owner = actor;
   if (ownerDiscordId && String(ownerDiscordId) !== actor.discord_id) {
     if (!isOfficer(actor)) throw fail(403, "Só o mestre ou um admin lista pilotos de outra conta.");
@@ -297,6 +305,8 @@ export async function listPilotCandidates(actor, ownerDiscordId = null) {
     SELECT m.discord_id, m.username, m.global_name, m.avatar, m.character_name, m.class_name, m.level, m.guild_id
     FROM members m
     WHERE m.discord_id <> $1
+      -- Membro comum vê só a própria guilda e quem ainda não tem guilda (amigo que vai pilotar).
+      AND ($2::boolean OR m.guild_id IS NULL OR m.guild_id = $3)
       AND NOT EXISTS (
         SELECT 1 FROM account_pilots p
         WHERE p.status IN ('pending', 'active')
@@ -305,7 +315,7 @@ export async function listPilotCandidates(actor, ownerDiscordId = null) {
     ORDER BY coalesce(m.character_name, m.global_name, m.username) ASC
     LIMIT 500
     `,
-    [owner.discord_id],
+    [owner.discord_id, isOfficer(actor), owner.guild_id ?? null],
   );
   return rows.map((row) => presentPilotMember(row));
 }
@@ -313,6 +323,7 @@ export async function listPilotCandidates(actor, ownerDiscordId = null) {
 export async function invitePilot(actor, body = {}) {
   const ownerId = actor.discord_id;
   if (!ownerId) throw fail(401, "Faça login para continuar.");
+  assertInGuild(actor);
 
   // Dono convida na própria conta; oficial pode vincular em outra.
   let targetOwnerId = ownerId;
@@ -327,6 +338,10 @@ export async function invitePilot(actor, body = {}) {
   const pilot = await findMemberByQuery(body.pilotQuery || body.username || body.discordId);
   if (!pilot) throw fail(404, "Piloto não encontrado. Peça pra pessoa entrar no site pelo Discord antes.");
   if (pilot.discord_id === owner.discord_id) throw fail(400, "Não dá para vincular a si mesmo.");
+  // Oficial não se coloca como piloto da conta de outra pessoa: daria para gastar o DKP dela.
+  if (targetOwnerId !== ownerId && pilot.discord_id === actor.discord_id) {
+    throw fail(403, "Você não pode se colocar como piloto da conta de outra pessoa.");
+  }
 
   const existingOwner = await pool.query(
     `
@@ -354,9 +369,9 @@ export async function invitePilot(actor, body = {}) {
     throw fail(400, "Esse Discord já está vinculado ou convidado como piloto de outra conta.");
   }
 
-  // Oficial pode ativar na hora; convite do dono fica pendente.
-  // Vínculo NÃO tira vaga: só "entrar como piloto" / cargo Piloto na ficha.
-  const activateNow = isOfficer(actor) && Boolean(body.activate);
+  // Todo vínculo começa pendente e só vale depois que o piloto aceita, inclusive o
+  // criado por oficial (antes o oficial podia ativar na hora, sem ninguém aceitar).
+  const activateNow = false;
   const { rows } = await pool.query(
     `
     INSERT INTO account_pilots (owner_discord_id, pilot_discord_id, status, accepted_at, created_by)

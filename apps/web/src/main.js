@@ -1474,7 +1474,6 @@ function openPilotDialog(member) {
           try {
             const payload = { discordId: selectedPilotId };
             if (!isSelf) payload.ownerDiscordId = member.discordId;
-            if (officer && !isSelf) payload.activate = true;
             await api("/api/pilots", { method: "POST", body: JSON.stringify(payload) });
             if (isSelf) {
               const me = await api("/api/me");
@@ -1487,7 +1486,7 @@ function openPilotDialog(member) {
             error.textContent = err.message;
           }
         },
-      }, [officer && !isSelf ? t("sheet.linkActivate") : t("sheet.sendInvite")]));
+      }, [t("sheet.sendInvite")]));
     }
     body.replaceChildren(...children);
   }
