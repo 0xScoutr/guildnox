@@ -57,6 +57,35 @@ export async function migrateActivitySchedules() {
     ON activities (schedule_id, starts_at)
     WHERE schedule_id IS NOT NULL
   `);
+  // Oficial excluiu a atividade que a agenda criou (boss cancelado): o horário fica
+  // anotado aqui para a agenda não criar de novo no ciclo seguinte. Sem chave
+  // estrangeira de propósito, para não travar exclusão de guilda ou de agenda.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS activity_schedule_skips (
+      schedule_id BIGINT NOT NULL,
+      starts_at TIMESTAMPTZ NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (schedule_id, starts_at)
+    )
+  `);
+  await pool.query(`
+    CREATE OR REPLACE FUNCTION guildnox_schedule_skip() RETURNS trigger AS $$
+    BEGIN
+      IF OLD.schedule_id IS NOT NULL THEN
+        INSERT INTO activity_schedule_skips (schedule_id, starts_at)
+        VALUES (OLD.schedule_id, OLD.starts_at)
+        ON CONFLICT DO NOTHING;
+      END IF;
+      RETURN OLD;
+    END
+    $$ LANGUAGE plpgsql
+  `);
+  await pool.query("DROP TRIGGER IF EXISTS activities_schedule_skip ON activities");
+  await pool.query(`
+    CREATE TRIGGER activities_schedule_skip
+    AFTER DELETE ON activities
+    FOR EACH ROW EXECUTE FUNCTION guildnox_schedule_skip()
+  `);
 }
 
 function present(row) {
@@ -228,6 +257,10 @@ async function createDueActivities() {
       AND occ.dow = ANY(s.weekdays)
       AND occ.starts_at > now()
       AND occ.starts_at <= now() + make_interval(mins => $1)
+      AND NOT EXISTS (
+        SELECT 1 FROM activity_schedule_skips k
+        WHERE k.schedule_id = s.id AND k.starts_at = occ.starts_at
+      )
     ON CONFLICT (schedule_id, starts_at) WHERE schedule_id IS NOT NULL DO NOTHING
     RETURNING id, name, guild_id, starts_at
     `,
@@ -236,6 +269,7 @@ async function createDueActivities() {
   for (const row of rows) {
     console.log(`agenda: criou "${row.name}" (#${row.id}) para ${new Date(row.starts_at).toISOString()}`);
   }
+  await pool.query("DELETE FROM activity_schedule_skips WHERE starts_at < now() - interval '2 days'");
   return rows;
 }
 
