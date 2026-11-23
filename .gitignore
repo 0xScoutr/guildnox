@@ -7,7 +7,6 @@ dist/
 .railway/
 *.log
 apps/api/stdout
-apps/api/{console.error(e)
 assets/
 /mapa-geena-*.png
 *.pem

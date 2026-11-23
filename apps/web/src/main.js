@@ -214,7 +214,16 @@ function isPiloting(member = state.me) {
 }
 
 function needsGuild(member = state.me) {
-  return Boolean(member) && !member.currentGuild;
+  if (!member) return false;
+  // Só libera se está usando a conta do dono (ou já tem guilda efetiva).
+  if (member.piloting?.owner) return false;
+  if (member.awaitingPilotLink) return false;
+  if (member.pilotAccount && !member.pilotSeat && !member.currentGuild) return false;
+  return !member.currentGuild;
+}
+
+function isAwaitingPilot(member = state.me) {
+  return Boolean(member?.awaitingPilotLink || (member?.pilotAccount && !member?.currentGuild && !member?.piloting?.owner && !member?.pilotSeat));
 }
 
 function hasPendingApplication(member = state.me) {
@@ -223,6 +232,7 @@ function hasPendingApplication(member = state.me) {
 
 function route() {
   if (!state.me) return "entrar";
+  if (isAwaitingPilot()) return "piloto-aguardando";
   if (needsGuild()) return hasPendingApplication() ? "aguardando" : "guilda";
   const page = location.hash.replace(/^#\/?/, "");
   if (page === "membros") return isOfficer() ? "membros" : "painel";
@@ -394,6 +404,68 @@ function drawPendingGuild() {
   }, 8000);
 }
 
+function drawAwaitingPilot() {
+  document.title = pageTitle("piloto-aguardando");
+  const error = el("div", { className: "alert", hidden: "hidden" });
+  let timer = null;
+  document.getElementById("app").replaceChildren(el("main", { className: "auth" }, [
+    el("div", { className: "auth-tools" }, [toolbarSwitches()]),
+    el("div", { className: "auth-card" }, [
+      medallion(),
+      pilotBanner(),
+      el("p", { className: "kicker", text: t("pilot.wait.kicker") }),
+      el("h1", { text: t("pilot.wait.title") }),
+      el("p", { className: "lede", text: t("pilot.wait.lede") }),
+      el("div", { className: "card" }, [
+        error,
+        el("button", {
+          className: "btn btn-ghost",
+          type: "button",
+          onClick: async () => {
+            error.hidden = true;
+            try {
+              clearInterval(timer);
+              const data = await api("/api/pilots/choose", { method: "DELETE" });
+              state.me = data.member;
+              await render();
+            } catch (err) {
+              error.hidden = false;
+              error.textContent = err.message;
+            }
+          },
+        }, [t("pilot.wait.chooseGuild")]),
+        el("button", {
+          className: "btn btn-ghost",
+          type: "button",
+          onClick: async () => {
+            clearInterval(timer);
+            await api("/auth/logout", { method: "POST" }).catch(() => {});
+            state.me = null;
+            stopActivityOpenPoll();
+            resetActivityOpenWatch();
+            location.hash = "";
+            await render();
+          },
+        }, [t("logout")]),
+      ]),
+    ]),
+  ]));
+  timer = setInterval(async () => {
+    try {
+      const data = await api("/api/me");
+      state.me = data.member;
+      state.guilds = uniqueGuilds(data.guilds || []);
+      if (!isAwaitingPilot(state.me)) {
+        clearInterval(timer);
+        if (!needsGuild(state.me)) location.hash = "#/painel";
+        await render();
+      }
+    } catch {
+      /* keep waiting */
+    }
+  }, 8000);
+}
+
 function drawChooseGuild() {
   document.title = pageTitle("guilda");
   const error = el("div", { className: "alert", hidden: "hidden" });
@@ -492,6 +564,26 @@ function drawChooseGuild() {
         error,
         list,
         createWrap,
+        !isMaster
+          ? el("div", { className: "guild-pilot-entry" }, [
+            el("p", { className: "muted", text: t("pilot.choose.hint") }),
+            el("button", {
+              className: "btn guild-pick-btn",
+              type: "button",
+              onClick: async () => {
+                error.hidden = true;
+                try {
+                  const result = await api("/api/pilots/choose", { method: "POST" });
+                  state.me = result.member;
+                  await render();
+                } catch (err) {
+                  error.hidden = false;
+                  error.textContent = err.message;
+                }
+              },
+            }, [t("pilot.choose.button")]),
+          ])
+          : null,
         el("button", {
           className: "btn btn-ghost",
           type: "button",
@@ -907,7 +999,11 @@ function membersView(allMembers, pendingApps = []) {
 
   function visible() {
     return members.filter((member) => {
-      if (guildFilter && member.guildName !== guildFilter) return false;
+      if (guildFilter === "__pilot__") {
+        if (!member.pilotAccount) return false;
+      } else if (guildFilter && member.guildName !== guildFilter) {
+        return false;
+      }
       const q = foldText(search).trim();
       if (!q) return true;
       return foldText([
@@ -915,9 +1011,48 @@ function membersView(allMembers, pendingApps = []) {
         member.username,
         member.className,
         member.guildName,
+        member.pilotAccount ? "piloto" : "",
+        member.pilotingOwner?.nick || "",
+        member.pilotingOwner?.username || "",
+        member.linkedPilot?.nick || "",
+        member.linkedPilot?.username || "",
         roleLabel(member.role),
       ].join(" ")).includes(q);
     });
+  }
+
+  function pilotLinkNote(member) {
+    if (member.pilotingOwner) {
+      const key = member.pilotingOwner.status === "pending"
+        ? "members.pilotLinkedPending"
+        : "members.pilotLinkedTo";
+      return el("span", {
+        className: "muted members-pilot-link",
+        text: t(key, {
+          nick: member.pilotingOwner.nick,
+          user: member.pilotingOwner.username,
+        }),
+      });
+    }
+    if (member.pilotAccount) {
+      return el("span", {
+        className: "muted members-pilot-link",
+        text: t("members.pilotUnlinked"),
+      });
+    }
+    if (member.linkedPilot) {
+      const key = member.linkedPilot.status === "pending"
+        ? "members.ownerPilotPending"
+        : "members.ownerPilotActive";
+      return el("span", {
+        className: "muted members-pilot-link",
+        text: t(key, {
+          nick: member.linkedPilot.nick,
+          user: member.linkedPilot.username,
+        }),
+      });
+    }
+    return null;
   }
 
   function drawRows() {
@@ -934,12 +1069,15 @@ function membersView(allMembers, pendingApps = []) {
         el("div", {}, [
           el("strong", { text: displayName(member) }),
           el("span", { text: `@${member.username}` }),
+          pilotLinkNote(member),
         ]),
       ])]),
       el("td", {}, [
         member.guildName
           ? el("span", { className: "badge guild-badge", text: member.guildName })
-          : el("span", { className: "muted", text: t("members.noGuild") }),
+          : member.pilotAccount || member.pilotingOwner
+            ? el("span", { className: "badge guild-badge", text: t("members.pilotFilter") })
+            : el("span", { className: "muted", text: t("members.noGuild") }),
       ]),
       el("td", { text: member.className || "—" }),
       el("td", { text: number.format(member.level) }),
@@ -1020,6 +1158,7 @@ function membersView(allMembers, pendingApps = []) {
     },
   }, [
     el("option", { value: "", text: t("members.allGuilds") }),
+    el("option", { value: "__pilot__", text: t("members.pilotFilter") }),
     ...guildNames().map((name) => el("option", { value: name, text: name })),
   ]);
 
@@ -1283,6 +1422,7 @@ function openSheet(member) {
     return option;
   }));
   const currentGuildId = member.guildId ?? member.homeGuild?.id ?? "";
+  const isPilotAccount = Boolean(member.pilotAccount);
   const guildSelect = el("select", { name: "guildId", className: "select" }, [
     el("option", { value: "", text: t("members.loadingGuilds") }),
   ]);
@@ -1328,20 +1468,32 @@ function openSheet(member) {
         guilds = [];
       }
     }
-    guildSelect.replaceChildren(
+    const options = [
+      el("option", {
+        value: "__pilot__",
+        text: t("members.pilotFilter"),
+        ...(isPilotAccount ? { selected: "selected" } : {}),
+      }),
       ...guilds.map((guild) => {
         const option = el("option", { value: String(guild.id), text: guild.name });
-        if (String(guild.id) === String(currentGuildId)) option.selected = true;
+        if (!isPilotAccount && String(guild.id) === String(currentGuildId)) option.selected = true;
         return option;
       }),
-    );
-    if (!guilds.length) {
-      guildSelect.replaceChildren(el("option", {
-        value: String(currentGuildId || ""),
-        text: member.guildName || t("members.noGuildOption"),
-        selected: "selected",
-      }));
-    } else if (currentGuildId && ![...guildSelect.options].some((opt) => opt.value === String(currentGuildId))) {
+    ];
+    guildSelect.replaceChildren(...options);
+    if (!guilds.length && !isPilotAccount) {
+      guildSelect.replaceChildren(
+        el("option", {
+          value: "__pilot__",
+          text: t("members.pilotFilter"),
+        }),
+        el("option", {
+          value: String(currentGuildId || ""),
+          text: member.guildName || t("members.noGuildOption"),
+          selected: "selected",
+        }),
+      );
+    } else if (!isPilotAccount && currentGuildId && ![...guildSelect.options].some((opt) => opt.value === String(currentGuildId))) {
       guildSelect.append(el("option", {
         value: String(currentGuildId),
         text: member.guildName || `Guilda #${currentGuildId}`,
@@ -1361,7 +1513,11 @@ function openSheet(member) {
       power: Number(power.value),
     };
     if (officer) body.dkp = Number(dkp.value);
-    if (officer && guildSelect.value) body.guildId = Number(guildSelect.value);
+    if (officer && guildSelect.value === "__pilot__") {
+      body.pilotAccount = true;
+    } else if (officer && guildSelect.value) {
+      body.guildId = Number(guildSelect.value);
+    }
     if (master) body.role = role.value;
     try {
       const result = await api(`/api/members/${member.discordId}`, {
@@ -1470,17 +1626,36 @@ async function switchActingCharacter(actAs) {
   await render();
 }
 
+/** Piloto vinculado sem guilda própria não pode ficar em "meu personagem" — volta pro dono. */
+async function ensurePilotActing() {
+  const me = state.me;
+  if (!me?.pilotSeat?.owner) return;
+  if (me.piloting?.owner) return;
+  if (me.currentGuild) return;
+  if (me.loginHasGuild) return;
+  const data = await api("/api/pilots/acting", {
+    method: "POST",
+    body: JSON.stringify({ actAs: "owner" }),
+  });
+  state.me = data.member;
+}
+
 function characterSwitcher() {
   const me = state.me;
   const seat = me?.pilotSeat;
   if (!seat?.owner) return null;
   const acting = me.actingAs === "self" ? "self" : "owner";
   const mine = me.loginNick || me.loginUsername || "meu personagem";
+  const canUseSelf = Boolean(me.loginHasGuild);
   const select = el("select", {
     className: "select character-switch-select",
     "aria-label": "Personagem em uso",
     onChange: async (event) => {
       const next = event.target.value === "self" ? "self" : "owner";
+      if (next === "self" && !canUseSelf) {
+        select.value = "owner";
+        return;
+      }
       select.disabled = true;
       try {
         await switchActingCharacter(next);
@@ -1491,10 +1666,12 @@ function characterSwitcher() {
       }
     },
   }, [
-    el("option", { value: "self", text: t("char.mine", { name: mine }) }),
+    canUseSelf
+      ? el("option", { value: "self", text: t("char.mine", { name: mine }) })
+      : null,
     el("option", { value: "owner", text: t("char.pilot", { name: seat.owner.nick }) }),
   ]);
-  select.value = acting;
+  select.value = canUseSelf && acting === "self" ? "self" : "owner";
   return el("div", { className: "character-switch" }, [
     el("span", { className: "muted", text: t("char.use") }),
     select,
@@ -1788,7 +1965,33 @@ async function showPage(active, loader) {
   setPageContent(content);
 }
 
+async function handleRenderError(error) {
+  if (error?.data?.needsGuild || /Escolha uma guilda/i.test(String(error?.message || ""))) {
+    try {
+      if (state.me?.pilotSeat?.owner) {
+        await ensurePilotActing();
+        await render();
+        return;
+      }
+      const data = await api("/api/me");
+      state.me = data.member;
+      state.guilds = uniqueGuilds(data.guilds || []);
+      location.hash = "";
+      await render();
+      return;
+    } catch {
+      /* cai no fallback */
+    }
+  }
+  document.getElementById("app").replaceChildren(
+    el("p", { className: "loading", text: error.message || t("auth.errorGeneric") }),
+  );
+}
+
 async function render() {
+  if (state.me) {
+    try { await ensurePilotActing(); } catch { /* ignore */ }
+  }
   const page = route();
   if (page === "entrar") {
     cleanupPages();
@@ -1805,6 +2008,14 @@ async function render() {
     stopActivityOpenPoll();
     resetActivityOpenWatch();
     drawChooseGuild();
+    return;
+  }
+
+  if (page === "piloto-aguardando") {
+    cleanupPages();
+    stopActivityOpenPoll();
+    resetActivityOpenWatch();
+    drawAwaitingPilot();
     return;
   }
 
@@ -1872,16 +2083,15 @@ async function boot() {
     state.me = null;
     state.guilds = [];
   }
+  try { await ensurePilotActing(); } catch { /* ignore */ }
   if (state.me && !needsGuild() && !location.hash) location.hash = "#/painel";
   window.addEventListener("hashchange", () => {
-    render().catch((error) => {
-      document.getElementById("app").replaceChildren(el("p", { className: "loading", text: error.message }));
-    });
+    render().catch((error) => handleRenderError(error));
   });
   await render();
   syncActivitySoundPoll();
 }
 
 boot().catch((error) => {
-  document.getElementById("app").textContent = error.message;
+  handleRenderError(error);
 });

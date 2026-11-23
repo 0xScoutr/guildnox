@@ -145,6 +145,7 @@ export function presentMember(row) {
   return {
     ...present(row),
     guildName: row.guild_name || null,
+    pilotAccount: Boolean(row.pilot_account),
   };
 }
 
@@ -374,11 +375,16 @@ export async function updateMember(discordId, fields) {
     power: fields.power,
     dkp: fields.dkp,
     role: fields.role,
-    guild_id: fields.guildId,
   };
-  // Ao mudar a guilda de casa, alinha a guilda em gestão pra não ficar apontando pra outra.
-  if (fields.guildId !== undefined) {
+  if (fields.pilotAccount === true) {
+    map.pilot_account = true;
+    map.guild_id = null;
+    map.managing_guild_id = null;
+  } else if (fields.guildId !== undefined) {
+    // Ao mudar a guilda de casa, alinha a guilda em gestão pra não ficar apontando pra outra.
+    map.guild_id = fields.guildId;
     map.managing_guild_id = fields.guildId;
+    map.pilot_account = false;
   }
   if (fields.powerUpdatedAt !== undefined) {
     map.power_updated_at = fields.powerUpdatedAt;
@@ -397,7 +403,7 @@ export async function updateMember(discordId, fields) {
     `UPDATE members SET ${sets.join(", ")} WHERE discord_id = $${values.length} RETURNING *`,
     values,
   );
-  if (fields.guildId !== undefined) {
+  if (fields.guildId !== undefined || fields.pilotAccount === true) {
     await pool.query(
       `
       UPDATE guild_applications

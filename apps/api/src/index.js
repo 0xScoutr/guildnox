@@ -64,8 +64,11 @@ import {
   getPilotContext,
   invitePilot,
   listPilotCandidates,
+  listOpenPilotLinks,
   migratePilots,
   removePilotLink,
+  choosePilotAccount,
+  leavePilotAccount,
 } from "./pilots.js";
 
 const PORT = Number(process.env.PORT || 8080);
@@ -208,10 +211,17 @@ async function requireGuild(req, res, next) {
 async function presentMe(member, actAs = "owner") {
   const ctx = await getPilotContext(member, { actAs });
   const actor = ctx.actor;
+  const pilotAccount = Boolean(member.pilot_account);
+  const awaitingPilotLink = Boolean(
+    pilotAccount
+    && member.guild_id == null
+    && !ctx.piloting
+    && !ctx.pilotSeat,
+  );
   const [wallet, withGuild, pendingApplication] = await Promise.all([
     presentMemberWallet(actor),
     presentMemberWithGuild(actor),
-    member.guild_id == null && !ctx.piloting
+    member.guild_id == null && !ctx.piloting && !pilotAccount
       ? getPendingApplication(member.discord_id)
       : null,
   ]);
@@ -222,11 +232,14 @@ async function presentMe(member, actAs = "owner") {
     loginDiscordId: member.discord_id,
     loginUsername: member.username,
     loginNick: member.character_name || member.global_name || member.username,
+    loginHasGuild: member.guild_id != null,
     guildId: withGuild.guildId,
     managingGuildId: withGuild.managingGuildId,
     currentGuild: withGuild.currentGuild,
     homeGuild: withGuild.homeGuild,
     pendingApplication,
+    pilotAccount,
+    awaitingPilotLink,
     actingAs: ctx.actingAs,
     pilotSeat: ctx.pilotSeat,
     piloting: ctx.piloting,
@@ -433,6 +446,16 @@ app.get("/api/pilots/candidates", requireUser, wrap(async (req, res) => {
   res.json({ members: await listPilotCandidates(req.member, ownerDiscordId) });
 }));
 
+app.post("/api/pilots/choose", requireUser, wrap(async (req, res) => {
+  const updated = await choosePilotAccount(req.member);
+  res.json({ member: await presentMe(updated, pilotActAs(req)) });
+}));
+
+app.delete("/api/pilots/choose", requireUser, wrap(async (req, res) => {
+  const updated = await leavePilotAccount(req.member);
+  res.json({ member: await presentMe(updated, pilotActAs(req)) });
+}));
+
 app.post("/api/pilots/acting", requireUser, wrap(async (req, res) => {
   const mode = req.body?.actAs === "self" ? "self" : "owner";
   if (mode === "owner") {
@@ -480,8 +503,42 @@ app.get("/api/members", requireUser, requireGuild, wrap(async (req, res) => {
     throw fail(403, "Só o mestre ou um admin vê a lista de membros.");
   }
   // Oficiais veem a aliança inteira pra filtrar por guilda.
-  const members = await listMembers(null);
-  res.json({ members: members.map(presentMember) });
+  const [members, pilotLinks] = await Promise.all([
+    listMembers(null),
+    listOpenPilotLinks(),
+  ]);
+  const byPilot = new Map(pilotLinks.map((link) => [link.pilotDiscordId, link]));
+  const byOwner = new Map(pilotLinks.map((link) => [link.ownerDiscordId, link]));
+  res.json({
+    members: members.map((row) => {
+      const base = presentMember(row);
+      const asPilot = byPilot.get(row.discord_id);
+      const asOwner = byOwner.get(row.discord_id);
+      return {
+        ...base,
+        pilotingOwner: asPilot
+          ? {
+            linkId: asPilot.linkId,
+            status: asPilot.status,
+            nick: asPilot.owner.nick,
+            username: asPilot.owner.username,
+            discordId: asPilot.owner.discordId,
+            avatarUrl: asPilot.owner.avatarUrl,
+          }
+          : null,
+        linkedPilot: asOwner
+          ? {
+            linkId: asOwner.linkId,
+            status: asOwner.status,
+            nick: asOwner.pilot.nick,
+            username: asOwner.pilot.username,
+            discordId: asOwner.pilot.discordId,
+            avatarUrl: asOwner.pilot.avatarUrl,
+          }
+          : null,
+      };
+    }),
+  });
 }));
 
 app.patch("/api/members/:discordId", requireUser, wrap(async (req, res) => {
@@ -497,6 +554,7 @@ app.patch("/api/members/:discordId", requireUser, wrap(async (req, res) => {
   if ("dkp" in req.body && !officer) throw fail(403, "Só o mestre ou um admin altera DKP.");
   if ("role" in req.body && !master) throw fail(403, "Só o mestre altera cargos.");
   if ("guildId" in req.body && !officer) throw fail(403, "Só o mestre ou um admin altera a guilda do membro.");
+  if ("pilotAccount" in req.body && !officer) throw fail(403, "Só o mestre ou um admin marca piloto.");
 
   const patch = {};
   if ("characterName" in req.body) patch.characterName = readText(req.body.characterName, 32, "O nome");
@@ -516,7 +574,10 @@ app.patch("/api/members/:discordId", requireUser, wrap(async (req, res) => {
     }
     patch.role = req.body.role;
   }
-  if ("guildId" in req.body && officer) {
+  if ("pilotAccount" in req.body && officer && req.body.pilotAccount === true) {
+    if (target.role === "master") throw fail(400, "O mestre não pode ser marcado como piloto.");
+    patch.pilotAccount = true;
+  } else if ("guildId" in req.body && officer) {
     const guildId = readInt(Number(req.body.guildId), { min: 1, max: 1000000, label: "A guilda" });
     const guild = await findGuild(guildId);
     if (!guild || guild.active === false) throw fail(400, "Guilda inválida ou inativa.");

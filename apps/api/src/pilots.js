@@ -49,6 +49,89 @@ export async function migratePilots() {
     ON account_pilots (pilot_discord_id)
     WHERE status IN ('pending', 'active')
   `);
+  // Conta marcada como piloto: entra no site sem guilda e sem ocupar vaga.
+  // Só isso (ou marcar cargo Piloto na ficha) tira a vaga — vínculo de piloto sozinho não.
+  await pool.query(`
+    ALTER TABLE members
+    ADD COLUMN IF NOT EXISTS pilot_account BOOLEAN NOT NULL DEFAULT false
+  `);
+}
+
+/** Entra no modo piloto (sem guilda / sem vaga) e aguarda vínculo do dono. */
+export async function choosePilotAccount(actor) {
+  if (!actor?.discord_id) throw fail(401, "Faça login para continuar.");
+  if (actor.guild_id != null) {
+    throw fail(400, "Saia da guilda antes de entrar como piloto.");
+  }
+  if (actor.role === "master") {
+    throw fail(400, "O mestre não entra como piloto.");
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      `
+      UPDATE guild_applications
+      SET status = 'rejected', resolved_at = now(), resolved_by = $1
+      WHERE member_discord_id = $1 AND status = 'pending'
+      `,
+      [actor.discord_id],
+    );
+    const { rows } = await client.query(
+      `
+      UPDATE members
+      SET pilot_account = true, updated_at = now()
+      WHERE discord_id = $1
+      RETURNING *
+      `,
+      [actor.discord_id],
+    );
+    await client.query("COMMIT");
+    return rows[0];
+  } catch (error) {
+    try { await client.query("ROLLBACK"); } catch { /* ignore */ }
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+/** Volta para a tela de escolha de guilda (sai do modo piloto sem vínculo). */
+export async function leavePilotAccount(actor) {
+  if (!actor?.discord_id) throw fail(401, "Faça login para continuar.");
+  if (actor.guild_id != null) {
+    throw fail(400, "Você já está em uma guilda.");
+  }
+
+  const open = await pool.query(
+    `
+    SELECT id, status FROM account_pilots
+    WHERE pilot_discord_id = $1 AND status IN ('pending', 'active')
+    LIMIT 1
+    `,
+    [actor.discord_id],
+  );
+  if (open.rows[0]?.status === "active") {
+    throw fail(400, "Remova o vínculo de piloto ativo antes de sair do modo piloto.");
+  }
+  if (open.rows[0]?.status === "pending") {
+    await pool.query(
+      `DELETE FROM account_pilots WHERE id = $1 AND status = 'pending'`,
+      [open.rows[0].id],
+    );
+  }
+
+  const { rows } = await pool.query(
+    `
+    UPDATE members
+    SET pilot_account = false, updated_at = now()
+    WHERE discord_id = $1
+    RETURNING *
+    `,
+    [actor.discord_id],
+  );
+  return rows[0];
 }
 
 async function loadLink(id, client = pool) {
@@ -272,6 +355,7 @@ export async function invitePilot(actor, body = {}) {
   }
 
   // Oficial pode ativar na hora; convite do dono fica pendente.
+  // Vínculo NÃO tira vaga: só "entrar como piloto" / cargo Piloto na ficha.
   const activateNow = isOfficer(actor) && Boolean(body.activate);
   const { rows } = await pool.query(
     `
@@ -344,4 +428,47 @@ export async function removePilotLink(actor, linkId) {
 
   await pool.query("DELETE FROM account_pilots WHERE id = $1", [id]);
   return { ok: true };
+}
+
+/** Vínculos abertos para enriquecer a lista de membros (piloto ↔ dono). */
+export async function listOpenPilotLinks() {
+  const { rows } = await pool.query(`
+    SELECT
+      p.id,
+      p.status,
+      p.owner_discord_id,
+      p.pilot_discord_id,
+      o.username AS owner_username,
+      o.global_name AS owner_global_name,
+      o.character_name AS owner_character_name,
+      o.avatar AS owner_avatar,
+      m.username AS pilot_username,
+      m.global_name AS pilot_global_name,
+      m.character_name AS pilot_character_name,
+      m.avatar AS pilot_avatar
+    FROM account_pilots p
+    JOIN members o ON o.discord_id = p.owner_discord_id
+    JOIN members m ON m.discord_id = p.pilot_discord_id
+    WHERE p.status IN ('pending', 'active')
+  `);
+  return rows.map((row) => ({
+    linkId: Number(row.id),
+    status: row.status,
+    ownerDiscordId: row.owner_discord_id,
+    pilotDiscordId: row.pilot_discord_id,
+    owner: presentPilotMember({
+      discord_id: row.owner_discord_id,
+      username: row.owner_username,
+      global_name: row.owner_global_name,
+      character_name: row.owner_character_name,
+      avatar: row.owner_avatar,
+    }),
+    pilot: presentPilotMember({
+      discord_id: row.pilot_discord_id,
+      username: row.pilot_username,
+      global_name: row.pilot_global_name,
+      character_name: row.pilot_character_name,
+      avatar: row.pilot_avatar,
+    }),
+  }));
 }

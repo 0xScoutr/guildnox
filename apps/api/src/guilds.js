@@ -172,6 +172,15 @@ export async function applyToGuild(actor, guildId) {
       `,
       [actor.discord_id],
     );
+    // Pedido de guilda sai do modo piloto (conta volta a disputar vaga).
+    await client.query(
+      `
+      UPDATE members
+      SET pilot_account = false, updated_at = now()
+      WHERE discord_id = $1
+      `,
+      [actor.discord_id],
+    );
     await client.query(
       `
       INSERT INTO guild_applications (member_discord_id, guild_id, status)
@@ -187,8 +196,9 @@ export async function applyToGuild(actor, guildId) {
     client.release();
   }
 
+  const fresh = (await pool.query("SELECT * FROM members WHERE discord_id = $1", [actor.discord_id])).rows[0] || actor;
   return {
-    member: actor,
+    member: fresh,
     pendingApplication: await getPendingApplication(actor.discord_id),
   };
 }
@@ -309,6 +319,7 @@ export async function resolveGuildApplication(actor, applicationId, decision) {
       `
       UPDATE members
       SET guild_id = $2,
+          pilot_account = false,
           managing_guild_id = CASE WHEN role IN ('master', 'admin') THEN $2 ELSE managing_guild_id END,
           updated_at = now()
       WHERE discord_id = $1
@@ -359,7 +370,12 @@ export async function listActiveGuilds() {
 export async function listGuilds() {
   const { rows } = await pool.query(`
     SELECT g.*,
-      (SELECT count(*)::int FROM members m WHERE m.guild_id = g.id) AS member_count
+      (
+        SELECT count(*)::int
+        FROM members m
+        WHERE m.guild_id = g.id
+          AND m.pilot_account = false
+      ) AS member_count
     FROM guilds g
     ORDER BY g.id ASC
   `);
@@ -515,6 +531,7 @@ export async function selectGuild(actor, guildId) {
       `
       UPDATE members
       SET guild_id = $2,
+          pilot_account = false,
           managing_guild_id = CASE WHEN role IN ('master', 'admin') THEN $2 ELSE managing_guild_id END,
           updated_at = now()
       WHERE discord_id = $1
@@ -554,6 +571,7 @@ export async function presentMemberWithGuild(member) {
     managingGuildId: member.managing_guild_id == null ? null : Number(member.managing_guild_id),
     currentGuild: presentGuild(managing || home),
     homeGuild: presentGuild(home),
+    pilotAccount: Boolean(member.pilot_account),
   };
 }
 
@@ -572,7 +590,12 @@ export async function getGuildsParticipationAverage() {
 
   const guilds = await pool.query(`
     SELECT g.*,
-      (SELECT count(*)::int FROM members m WHERE m.guild_id = g.id) AS member_count
+      (
+        SELECT count(*)::int
+        FROM members m
+        WHERE m.guild_id = g.id
+          AND m.pilot_account = false
+      ) AS member_count
     FROM guilds g
     WHERE g.active = true
     ORDER BY g.id ASC
