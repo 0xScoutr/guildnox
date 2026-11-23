@@ -832,9 +832,13 @@ app.get("/api/ranking", requireUser, requireGuild, wrap(async (req, res) => {
 app.use((error, _req, res, _next) => {
   const status = error.status || 500;
   if (status >= 500) console.error(error);
+  const message = status >= 500 ? "Erro interno." : error.message;
+  // Alguns erros levam um código em data.error (ex.: "already_participated") que o site
+  // usa para decidir o que fazer; a frase para a pessoa vai sempre em "message".
   res.status(status).json({
-    error: status >= 500 ? "Erro interno." : error.message,
+    error: message,
     ...(error.data || {}),
+    message,
   });
 });
 

@@ -201,7 +201,7 @@ async function api(path, options = {}) {
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const error = new Error(data.error || "Não foi possível concluir.");
+    const error = new Error(data.message || data.error || "Não foi possível concluir.");
     error.status = response.status;
     error.data = data;
     throw error;
