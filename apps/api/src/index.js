@@ -80,6 +80,14 @@ import {
   choosePilotAccount,
   leavePilotAccount,
 } from "./pilots.js";
+import {
+  createSchedule,
+  deleteSchedule,
+  listSchedules,
+  migrateActivitySchedules,
+  startActivitySchedules,
+  updateSchedule,
+} from "./activity-schedules.js";
 
 const PORT = Number(process.env.PORT || 8080);
 const ROLES = new Set(["master", "admin", "member"]);
@@ -732,6 +740,30 @@ app.delete("/api/auctions/:id/favorite", requireUser, requireGuild, wrap(async (
   res.json({ auction: await setAuctionFavorite(actor, id, false) });
 }));
 
+// Agenda automática de bosses (só oficiais; a guilda é a que o oficial está gerenciando).
+app.get("/api/activity-schedules", requireUser, requireGuild, wrap(async (req, res) => {
+  res.json({ schedules: await listSchedules(req.member, req.guildId) });
+}));
+
+app.post("/api/activity-schedules", requireUser, requireGuild, wrap(async (req, res) => {
+  if (req.pilotContext?.piloting) throw fail(403, "Piloto não mexe na agenda.");
+  res.status(201).json({ schedule: await createSchedule(req.member, req.body || {}, req.guildId) });
+}));
+
+app.patch("/api/activity-schedules/:id", requireUser, requireGuild, wrap(async (req, res) => {
+  if (req.pilotContext?.piloting) throw fail(403, "Piloto não mexe na agenda.");
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id < 1) throw fail(400, "Agenda inválida.");
+  res.json({ schedule: await updateSchedule(req.member, id, req.body || {}, req.guildId) });
+}));
+
+app.delete("/api/activity-schedules/:id", requireUser, requireGuild, wrap(async (req, res) => {
+  if (req.pilotContext?.piloting) throw fail(403, "Piloto não mexe na agenda.");
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id < 1) throw fail(400, "Agenda inválida.");
+  res.json(await deleteSchedule(req.member, id, req.guildId));
+}));
+
 app.get("/api/activities", requireUser, requireGuild, wrap(async (req, res) => {
   res.json({ activities: await listActivities(req.actor || req.member, req.guildId) });
 }));
@@ -819,6 +851,9 @@ await migrate();
 await migrateAuctions();
 await migrateActivities();
 await migrateGuilds();
+await migrateActivitySchedules();
+// O primeiro ciclo da agenda roda 5 s depois, com o resto das migrações já feito.
+startActivitySchedules();
 await migratePilots();
 await migrateDkpLedger();
 await migratePush();
