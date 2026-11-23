@@ -108,10 +108,6 @@ export async function getRanking(query = {}, guildId = null) {
     WHERE a.guild_id = $1
       AND a.finalized_at IS NULL
       AND a.starts_at <= now()
-      AND (
-        a.paused_at IS NOT NULL
-        OR a.expires_at > now()
-      )
     GROUP BY top.bidder_discord_id
     `,
     [guildId],

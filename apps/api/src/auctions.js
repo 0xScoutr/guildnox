@@ -78,6 +78,11 @@ export async function migrateAuctions() {
   `);
 }
 
+/**
+ * DKP preso em lances que estão ganhando. Continua preso depois que o leilão acaba
+ * e até ele ser cobrado: antes era liberado no fim, e dava para gastar o mesmo DKP
+ * de novo em outro leilão nos segundos entre o fim e a cobrança.
+ */
 export async function reservedDkp(discordId, client = pool) {
   const { rows } = await client.query(
     `
@@ -93,10 +98,6 @@ export async function reservedDkp(discordId, client = pool) {
     WHERE a.finalized_at IS NULL
       AND a.starts_at <= now()
       AND top.bidder_discord_id = $1
-      AND (
-        a.paused_at IS NOT NULL
-        OR a.expires_at > now()
-      )
     `,
     [discordId],
   );
@@ -187,17 +188,16 @@ async function finalizeIfNeeded(row) {
       );
       const payer = member.rows[0];
       if (payer) {
-        const charge = Math.min(Number(payer.dkp), Number(winner.amount));
-        if (charge > 0) {
-          await applyDkpDelta(client, {
-            discordId: payer.discord_id,
-            amount: -charge,
-            reason: "auction",
-            label: auction.item_name || `Leilão #${auction.id}`,
-            refType: "auction",
-            refId: String(auction.id),
-          });
-        }
+        // Cobra o lance inteiro. Se o saldo caiu depois do lance (ajuste de oficial),
+        // fica negativo em vez de o item sair de graça.
+        await applyDkpDelta(client, {
+          discordId: payer.discord_id,
+          amount: -Number(winner.amount),
+          reason: "auction",
+          label: auction.item_name || `Leilão #${auction.id}`,
+          refType: "auction",
+          refId: String(auction.id),
+        });
       }
       await client.query(
         `
