@@ -1,4 +1,5 @@
 import { t } from "./i18n.js";
+import { pushStateNow } from "./push.js";
 import { activeRegistration } from "./service-worker.js";
 
 const SOUND_PREF_KEY = "activitySoundEnabled";
@@ -86,6 +87,8 @@ async function showDesktopNotification(activity) {
   if (!("Notification" in window)) return;
   if (Notification.permission !== "granted") return;
   if (!pageInBackground()) return;
+  // Com o push ligado neste aparelho, o servidor já manda o aviso: não duplica.
+  if (pushStateNow() === "subscribed") return;
 
   const name = String(activity?.name || "").trim() || t("act.title");
   const title = t("act.notify.title");
@@ -102,6 +105,10 @@ async function showDesktopNotification(activity) {
   const registration = await activeRegistration();
   if (registration) {
     try {
+      // Outra aba (ou o push do servidor) já mostrou este aviso: não substitui, porque
+      // a do servidor tem o botão de check-in e fica na tela até a pessoa mexer.
+      const shown = await registration.getNotifications({ tag: options.tag }).catch(() => []);
+      if (shown.length) return;
       await registration.showNotification(title, options);
       return;
     } catch {

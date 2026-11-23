@@ -6,13 +6,30 @@ function needsSsl(url) {
   return !/localhost|127\.0\.0\.1|railway\.internal/.test(url);
 }
 
-export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL && needsSsl(process.env.DATABASE_URL)
-    ? { rejectUnauthorized: false }
-    : false,
-  connectionTimeoutMillis: 10000,
-});
+function poolOptions(extra = {}) {
+  return {
+    connectionString: process.env.DATABASE_URL,
+    ssl: process.env.DATABASE_URL && needsSsl(process.env.DATABASE_URL)
+      ? { rejectUnauthorized: false }
+      : false,
+    connectionTimeoutMillis: 10000,
+    ...extra,
+  };
+}
+
+export const pool = new Pool(poolOptions());
+
+// Conexões só dos avisos agendados (push e Discord). Na hora do boss o site enche o
+// pool principal; com um pool próprio o aviso de abertura não fica esperando vaga.
+export const jobPool = new Pool(poolOptions({ max: 2 }));
+
+// Conexão parada que cai (banco reiniciando) emite "error" no pool; sem quem ouça,
+// o Node derruba o processo. O pool descarta a conexão e abre outra quando precisar.
+for (const [name, target] of [["pool", pool], ["jobPool", jobPool]]) {
+  target.on("error", (error) => {
+    console.error(`${name}: conexão parada caiu: ${error.message}`);
+  });
+}
 
 export async function migrate() {
   await pool.query(`

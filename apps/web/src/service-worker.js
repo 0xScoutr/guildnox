@@ -9,7 +9,8 @@ function swSupported() {
   return typeof navigator !== "undefined" && "serviceWorker" in navigator && window.isSecureContext;
 }
 
-export function registerServiceWorker() {
+/** apiBase vai para o service worker poder fazer check-in pela notificação. */
+export function registerServiceWorker(apiBase = "") {
   if (!swSupported()) return Promise.resolve(null);
   if (registrationPromise) return registrationPromise;
 
@@ -19,10 +20,15 @@ export function registerServiceWorker() {
     if (data.type === "gc:open" && typeof data.hash === "string" && /^#\/[a-z-]*$/.test(data.hash)) {
       if (location.hash !== data.hash) location.hash = data.hash;
     }
+    // Check-in feito pelo botão da notificação: a lista da página atualiza.
+    if (data.type === "gc:checkin") window.dispatchEvent(new CustomEvent("gc:activity-checkin"));
   });
 
+  const base = String(apiBase || "").replace(/\/$/, "");
+  const scriptUrl = base ? `/sw.js?api=${encodeURIComponent(base)}` : "/sw.js";
+
   registrationPromise = navigator.serviceWorker
-    .register("/sw.js", { scope: "/" })
+    .register(scriptUrl, { scope: "/" })
     .then((registration) => {
       // Aba aberta por dias não recarrega a página (as rotas são por #), então
       // confere de vez em quando se saiu versão nova do service worker.
