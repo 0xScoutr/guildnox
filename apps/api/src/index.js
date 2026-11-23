@@ -257,7 +257,8 @@ async function presentMe(member, actAs = "owner") {
     loginHasGuild: member.guild_id != null,
     guildId: withGuild.guildId,
     managingGuildId: withGuild.managingGuildId,
-    currentGuild: withGuild.currentGuild,
+    // Pilotando, o site mostra a guilda de casa do dono, que é onde o piloto joga (ver requireGuild).
+    currentGuild: ctx.piloting && withGuild.homeGuild ? withGuild.homeGuild : withGuild.currentGuild,
     homeGuild: withGuild.homeGuild,
     pendingApplication,
     pilotAccount,
@@ -601,7 +602,7 @@ app.patch("/api/members/:discordId", requireUser, wrap(async (req, res) => {
   // a guilda junto, então só recusa quando ela muda de fato; quem ainda não tem guilda
   // de casa pode escolher a primeira.
   if (isSelf && !master) {
-    if (req.body.pilotAccount === true && !target.pilot_account) {
+    if (req.body.pilotAccount === true && target.guild_id != null) {
       throw fail(403, "Peça pro mestre mudar a sua conta.");
     }
     if ("guildId" in req.body && target.guild_id != null && Number(req.body.guildId) !== Number(target.guild_id)) {
@@ -634,7 +635,13 @@ app.patch("/api/members/:discordId", requireUser, wrap(async (req, res) => {
   if ("pilotAccount" in req.body && officer && req.body.pilotAccount === true) {
     if (target.role === "master") throw fail(400, "O mestre não pode ser marcado como piloto.");
     patch.pilotAccount = true;
-  } else if ("guildId" in req.body && officer) {
+  } else if (
+    "guildId" in req.body
+    && officer
+    // A ficha manda a guilda mesmo sem mudança: aí não revalida nem grava, senão salvar a
+    // ficha voltava a guilda em gestão para a de casa (e travava quem está numa guilda inativa).
+    && !(target.guild_id != null && Number(req.body.guildId) === Number(target.guild_id))
+  ) {
     const guildId = readInt(Number(req.body.guildId), { min: 1, max: 1000000, label: "A guilda" });
     const guild = await findGuild(guildId);
     if (!guild || guild.active === false) throw fail(400, "Guilda inválida ou inativa.");
@@ -807,11 +814,10 @@ app.post("/api/activities/:id/participate", requireUser, requireGuild, wrap(asyn
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id < 1) throw fail(400, "Atividade inválida.");
   const actor = req.actor || req.member;
-  // O piloto ganha junto se for conta piloto (sem guilda) ou da mesma guilda do dono;
-  // membro de outra guilda pilotando não leva DKP por aqui.
+  // O piloto ganha junto se não tem guilda (conta piloto ou o amigo que só pilota) ou se é
+  // da mesma guilda do dono; membro de outra guilda pilotando não leva DKP por aqui.
   const pilot = req.member;
-  const pilotCanEarn = Boolean(pilot.pilot_account) && pilot.guild_id == null
-    || (pilot.guild_id != null && Number(pilot.guild_id) === Number(actor.guild_id));
+  const pilotCanEarn = pilot.guild_id == null || Number(pilot.guild_id) === Number(actor.guild_id);
   const alsoCredit = req.pilotContext?.piloting && pilotCanEarn ? pilot : null;
   res.json(await participateActivity(actor, id, req.guildId, alsoCredit));
 }));
