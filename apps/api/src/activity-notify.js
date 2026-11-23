@@ -1,4 +1,4 @@
-import { pool } from "./db.js";
+import { jobPool, pool } from "./db.js";
 import { pushEnabled, sendActivityPush } from "./push.js";
 
 /**
@@ -83,9 +83,15 @@ const CLAIMS = [
   },
 ];
 
-async function deliver(kind, activity) {
-  for (const channel of CHANNELS) {
-    if (!channel.enabled()) continue;
+const RETRY_DELAY_MS = 3_000;
+
+/**
+ * Manda por um canal, com uma nova tentativa. Os canais só lançam erro antes de
+ * enviar (ler destinatários ou configuração); depois do envio eles só registram no
+ * log. Então tentar de novo não duplica o aviso.
+ */
+async function deliverTo(channel, kind, activity) {
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
     try {
       const result = await channel.send(kind, activity);
       if (result?.sent || result?.removed || result?.failed) {
@@ -94,10 +100,16 @@ async function deliver(kind, activity) {
           + `${result.removed || 0} removidos, ${result.failed || 0} falharam`,
         );
       }
+      return;
     } catch (error) {
-      console.error(`aviso ${channel.name} ${kind} #${activity.id} falhou: ${error.message}`);
+      console.error(`aviso ${channel.name} ${kind} #${activity.id} falhou (tentativa ${attempt}): ${error.message}`);
+      if (attempt === 1) await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
     }
   }
+}
+
+async function deliver(kind, activity) {
+  await Promise.all(CHANNELS.filter((channel) => channel.enabled()).map((channel) => deliverTo(channel, kind, activity)));
 }
 
 let ticking = false;
@@ -115,7 +127,7 @@ export async function runActivityNotifyTick() {
     do {
       tickAgain = false;
       for (const claim of CLAIMS) {
-        const { rows } = await pool.query(claim.sql, claim.params);
+        const { rows } = await jobPool.query(claim.sql, claim.params);
         for (const activity of rows) await deliver(claim.kind, activity);
       }
     } while (tickAgain);

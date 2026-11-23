@@ -1,6 +1,8 @@
+import { createECDH } from "node:crypto";
 import { parse as legacyParse } from "node:url";
 import webpush from "web-push";
-import { pool } from "./db.js";
+import { jobPool, pool } from "./db.js";
+import { isOfficer } from "./guilds.js";
 
 /**
  * Notificação push (Web Push): avisa de atividade mesmo com o site fechado.
@@ -39,7 +41,7 @@ const TEXT = {
     openBody: "Faça o check-in agora. Fecha em {min} min.",
     reminderTitle: "Ainda dá tempo: {name}",
     reminderBody: "Você ainda não fez check-in. Fecha em {min} min.",
-    reopenTitle: "{name} foi reaberta",
+    reopenTitle: "{name} reabriu",
     reopenBody: "Você ainda não fez check-in. Fecha em {min} min.",
     testTitle: "Notificações ligadas",
     testBody: "Os avisos de atividade vão chegar assim, mesmo com o site fechado.",
@@ -67,11 +69,11 @@ const TEXT = {
   es: {
     soonTitle: "{name} empieza en {min} min",
     soonBody: "Prepárate para el check-in.",
-    openTitle: "{name} está abierta",
+    openTitle: "Abrió: {name}",
     openBody: "Haz el check-in ahora. Cierra en {min} min.",
     reminderTitle: "Todavía hay tiempo: {name}",
     reminderBody: "Todavía no hiciste el check-in. Cierra en {min} min.",
-    reopenTitle: "{name} fue reabierta",
+    reopenTitle: "Se reabrió: {name}",
     reopenBody: "Todavía no hiciste el check-in. Cierra en {min} min.",
     testTitle: "Notificaciones activadas",
     testBody: "Los avisos de actividad llegarán así, incluso con el sitio cerrado.",
@@ -119,6 +121,13 @@ export function configurePush() {
     return false;
   }
   try {
+    // As duas chaves têm que ser do mesmo par; senão todo envio volta 403 e as
+    // inscrições somem aos poucos sem ninguém perceber.
+    const ecdh = createECDH("prime256v1");
+    ecdh.setPrivateKey(Buffer.from(priv, "base64url"));
+    if (ecdh.getPublicKey().toString("base64url") !== pub.replace(/=+$/, "")) {
+      throw new Error("a chave pública não é do mesmo par da privada");
+    }
     webpush.setVapidDetails(process.env.VAPID_SUBJECT || defaultSubject(), pub, priv);
   } catch (error) {
     console.error(`push desligado: chaves VAPID inválidas (${error.message})`);
@@ -189,13 +198,32 @@ function readKey(value, min, max, label) {
   return value;
 }
 
+/** Só quem joga em alguma guilda: membro aprovado, oficial ou piloto de uma conta. */
+async function assertCanReceive(member) {
+  if (member.guild_id != null || isOfficer(member)) return;
+  const { rowCount } = await pool.query(
+    "SELECT 1 FROM account_pilots WHERE pilot_discord_id = $1 AND status = 'active' LIMIT 1",
+    [member.discord_id],
+  );
+  if (!rowCount) throw fail(403, "Entre numa guilda para receber os avisos.");
+}
+
 export async function saveSubscription(member, body = {}, userAgent = "") {
   if (!enabled) throw fail(503, "As notificações ainda não foram ligadas neste servidor.");
+  await assertCanReceive(member);
   const sub = body.subscription || {};
   if (!isAllowedPushEndpoint(sub.endpoint)) throw fail(400, "Endereço de notificação não aceito.");
   const p256dh = readKey(sub.keys?.p256dh, 80, 100, "p256dh");
   const auth = readKey(sub.keys?.auth, 16, 32, "auth");
-  const lang = LANGS.has(body.lang) ? body.lang : "pt";
+  let lang = LANGS.has(body.lang) ? body.lang : null;
+  if (!lang) {
+    // Sem idioma (o navegador trocou a inscrição sozinho): herda o do último aparelho.
+    const { rows } = await pool.query(
+      "SELECT lang FROM push_subscriptions WHERE member_discord_id = $1 ORDER BY updated_at DESC LIMIT 1",
+      [member.discord_id],
+    );
+    lang = LANGS.has(rows[0]?.lang) ? rows[0].lang : "pt";
+  }
   const agent = String(userAgent || "").slice(0, 200) || null;
 
   // O mesmo aparelho pode trocar de conta: a inscrição passa para quem está logado agora.
@@ -244,28 +272,35 @@ export async function removeSubscription(member, endpoint) {
  * a guilda e pilotos das contas da guilda. Quem já fez check-in fica de fora.
  */
 async function recipientsFor(guildId, activityId) {
-  const { rows } = await pool.query(
+  // can_checkin: o check-in do site usa a guilda "efetiva" (para oficial, a que ele
+  // gerencia). Quem recebe aviso de outra guilda ganha o aviso sem o botão, que daria 404.
+  const { rows } = await jobPool.query(
     `
     WITH targets AS (
-      SELECT m.discord_id AS member_id, m.discord_id AS char_id
+      SELECT m.discord_id AS member_id, m.discord_id AS char_id,
+             (CASE WHEN m.role IN ('master', 'admin') AND m.managing_guild_id IS NOT NULL
+                   THEN m.managing_guild_id ELSE m.guild_id END) = $1 AS can_checkin
       FROM members m
       WHERE m.guild_id = $1
          OR (m.role IN ('master', 'admin') AND m.managing_guild_id = $1)
-      UNION
-      SELECT p.pilot_discord_id AS member_id, p.owner_discord_id AS char_id
+      UNION ALL
+      SELECT p.pilot_discord_id AS member_id, p.owner_discord_id AS char_id,
+             (CASE WHEN o.role IN ('master', 'admin') AND o.managing_guild_id IS NOT NULL
+                   THEN o.managing_guild_id ELSE o.guild_id END) = $1 AS can_checkin
       FROM account_pilots p
       JOIN members o ON o.discord_id = p.owner_discord_id
       WHERE p.status = 'active' AND o.guild_id = $1
     ),
     pending AS (
-      SELECT DISTINCT t.member_id
+      SELECT t.member_id, bool_or(t.can_checkin) AS can_checkin
       FROM targets t
       WHERE NOT EXISTS (
         SELECT 1 FROM activity_participants ap
         WHERE ap.activity_id = $2 AND ap.member_discord_id = t.char_id
       )
+      GROUP BY t.member_id
     )
-    SELECT s.id, s.endpoint, s.p256dh, s.auth, s.lang
+    SELECT s.id, s.endpoint, s.p256dh, s.auth, s.lang, p.can_checkin
     FROM push_subscriptions s
     JOIN pending p ON p.member_id = s.member_discord_id
     `,
@@ -288,7 +323,7 @@ async function sendAll(subscriptions, buildPayload, { ttl, topic }) {
       try {
         await webpush.sendNotification(
           { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-          JSON.stringify(buildPayload(textFor(sub.lang))),
+          JSON.stringify(buildPayload(textFor(sub.lang), sub)),
           { TTL: ttl, urgency: "high", topic, timeout: SEND_TIMEOUT_MS },
         );
         ok.push(sub.id);
@@ -299,33 +334,39 @@ async function sendAll(subscriptions, buildPayload, { ttl, topic }) {
       }
     }));
   }
-  if (ok.length) {
-    await pool.query(
-      "UPDATE push_subscriptions SET last_success_at = now(), failure_count = 0 WHERE id = ANY($1::bigint[])",
-      [ok],
-    );
-  }
-  if (gone.length) {
-    await pool.query("DELETE FROM push_subscriptions WHERE id = ANY($1::bigint[])", [gone]);
-  }
-  if (failed.length) {
-    await pool.query(
-      "UPDATE push_subscriptions SET failure_count = failure_count + 1 WHERE id = ANY($1::bigint[])",
-      [failed],
-    );
-    await pool.query("DELETE FROM push_subscriptions WHERE failure_count >= $1", [MAX_FAILURES]);
+  // Daqui para baixo o envio já aconteceu: erro de banco só vai para o log, para quem
+  // chamou não tentar de novo e mandar o aviso duas vezes.
+  try {
+    if (ok.length) {
+      await jobPool.query(
+        "UPDATE push_subscriptions SET last_success_at = now(), failure_count = 0 WHERE id = ANY($1::bigint[])",
+        [ok],
+      );
+    }
+    if (gone.length) {
+      await jobPool.query("DELETE FROM push_subscriptions WHERE id = ANY($1::bigint[])", [gone]);
+    }
+    if (failed.length) {
+      await jobPool.query(
+        "UPDATE push_subscriptions SET failure_count = failure_count + 1 WHERE id = ANY($1::bigint[])",
+        [failed],
+      );
+      await jobPool.query("DELETE FROM push_subscriptions WHERE failure_count >= $1", [MAX_FAILURES]);
+    }
+  } catch (error) {
+    console.error(`push: não deu para atualizar as inscrições depois do envio: ${error.message}`);
   }
   return { sent: ok.length, removed: gone.length, failed: failed.length };
 }
 
-function activityPayload(kind, activity, text, now = Date.now()) {
+function activityPayload(kind, activity, text, now = Date.now(), canCheckInHere = true) {
   const name = String(activity.name || "").trim() || "Atividade";
   const id = Number(activity.id);
   const vars = {
     name,
     min: kind === "soon" ? minutesUntil(activity.starts_at, now) : minutesUntil(activity.expires_at, now),
   };
-  const canCheckIn = kind !== "soon";
+  const canCheckIn = kind !== "soon" && canCheckInHere;
   return {
     kind,
     title: fill(text[`${kind}Title`], vars),
@@ -349,7 +390,7 @@ export async function sendActivityPush(kind, activity) {
   const ttl = Math.max(60, Math.round((new Date(activity.expires_at).getTime() - now) / 1000));
   const subscriptions = await recipientsFor(activity.guild_id, activity.id);
   if (!subscriptions.length) return { sent: 0 };
-  return sendAll(subscriptions, (text) => activityPayload(kind, activity, text, now), {
+  return sendAll(subscriptions, (text, sub) => activityPayload(kind, activity, text, now, sub.can_checkin !== false), {
     ttl,
     topic: `act${Number(activity.id)}`,
   });
@@ -359,6 +400,7 @@ const lastTestAt = new Map();
 
 export async function sendTestPush(member) {
   if (!enabled) throw fail(503, "As notificações ainda não foram ligadas neste servidor.");
+  await assertCanReceive(member);
   const now = Date.now();
   if (now - (lastTestAt.get(member.discord_id) || 0) < TEST_COOLDOWN_MS) {
     throw fail(429, "Espere alguns segundos antes de testar de novo.");

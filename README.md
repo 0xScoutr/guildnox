@@ -40,7 +40,7 @@ Veja `apps/api/.env.example`.
 - `CLIENT_ORIGIN` — endereço do site na Vercel
 - `API_PUBLIC_URL` — endereço público da API
 - `DISCORD_CLIENT_ID` e `DISCORD_CLIENT_SECRET`
-- `VAPID_PUBLIC_KEY` e `VAPID_PRIVATE_KEY` (opcionais) ligam as notificações push. Gere uma vez com `npx web-push generate-vapid-keys` e guarde as duas no Railway; trocar as chaves depois obriga todo mundo a ativar de novo. Sem elas o site funciona igual, só sem push.
+- `VAPID_PUBLIC_KEY` e `VAPID_PRIVATE_KEY` (opcionais) ligam as notificações push. Gere uma vez com `npx web-push generate-vapid-keys` e guarde as duas no Railway; trocar as chaves corta o push de todo mundo até cada um abrir o site de novo. Sem elas o site funciona igual, só sem push.
 - `VAPID_SUBJECT` (opcional): `https://` do site ou `mailto:` de contato
 
 ## Variável do site
