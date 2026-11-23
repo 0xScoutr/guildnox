@@ -369,6 +369,11 @@ export async function expelMember(actor, targetDiscordId) {
           ORDER BY b.amount DESC, b.created_at ASC, b.id ASC
           LIMIT 1
         ) = $1
+        -- Só quando sobra alguém: se o expulso era o único lance, o leilão segue normal.
+        AND EXISTS (
+          SELECT 1 FROM auction_bids o
+          WHERE o.auction_id = a.id AND o.bidder_discord_id <> $1
+        )
       `,
       [targetDiscordId],
     );
