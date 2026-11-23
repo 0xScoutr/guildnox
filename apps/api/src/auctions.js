@@ -154,25 +154,29 @@ async function listBids(auctionId, client = pool) {
   return rows;
 }
 
-async function finalizeIfNeeded(row, client = pool) {
+/**
+ * Encerra o leilão vencido e cobra o vencedor, numa transação de verdade.
+ *
+ * Antes isto rodava BEGIN, SELECT ... FOR UPDATE e COMMIT direto no pool, e cada
+ * comando ia para uma conexão diferente: o lock não segurava nada, duas abas
+ * abertas podiam cobrar o mesmo leilão juntas e um BEGIN ficava esquecido numa
+ * conexão do pool, levando junto o trabalho de outras pessoas.
+ */
+async function finalizeIfNeeded(row) {
   if (!row || row.finalized_at) return row;
-  const status = computeStatus(row);
-  if (status !== "ended") return row;
+  if (computeStatus(row) !== "ended") return row;
 
-  await client.query("BEGIN");
+  const client = await pool.connect();
   try {
+    await client.query("BEGIN");
     const locked = await client.query(
       "SELECT * FROM auctions WHERE id = $1 FOR UPDATE",
       [row.id],
     );
     const auction = locked.rows[0];
-    if (!auction || auction.finalized_at) {
+    if (!auction || auction.finalized_at || computeStatus(auction) !== "ended") {
       await client.query("COMMIT");
       return auction || row;
-    }
-    if (computeStatus(auction) !== "ended") {
-      await client.query("COMMIT");
-      return auction;
     }
 
     const winner = await topBid(auction.id, client);
@@ -211,10 +215,12 @@ async function finalizeIfNeeded(row, client = pool) {
     }
     await client.query("COMMIT");
   } catch (error) {
-    await client.query("ROLLBACK");
+    try { await client.query("ROLLBACK"); } catch { /* ignore */ }
     throw error;
+  } finally {
+    client.release();
   }
-  return loadAuctionRow(row.id, client);
+  return loadAuctionRow(row.id);
 }
 
 const IMAGE_DATA_MAX = 450_000;
