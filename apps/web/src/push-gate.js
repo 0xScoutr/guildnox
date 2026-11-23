@@ -11,7 +11,9 @@ import {
   enablePush,
   getPushState,
   isIOS,
+  isStandalone,
   pushStateNow,
+  pushTurnedOffHere,
   sendTestPush,
   syncPushSubscription,
 } from "./push.js";
@@ -124,11 +126,12 @@ function deniedSteps() {
   const ua = navigator.userAgent || "";
   const items = [];
   if (isIOS()) items.push("guide.denied.iosApp");
+  else if (/Android/i.test(ua) && isStandalone()) items.push("guide.denied.androidApp");
   else if (/Android/i.test(ua)) items.push("guide.denied.android");
   else if (/Firefox\//.test(ua)) items.push("guide.denied.firefox");
   else if (/Safari\//.test(ua) && !/Chrome\/|Chromium\/|Edg\//.test(ua)) items.push("guide.denied.safari");
   else items.push("guide.denied.chrome");
-  const others = ["guide.denied.chrome", "guide.denied.android", "guide.denied.iosApp", "guide.denied.safari", "guide.denied.firefox"]
+  const others = ["guide.denied.chrome", "guide.denied.android", "guide.denied.androidApp", "guide.denied.iosApp", "guide.denied.safari", "guide.denied.firefox"]
     .filter((key) => !items.includes(key));
   return { mine: items[0], others };
 }
@@ -169,7 +172,9 @@ export function mountPushGate(slot) {
   let note = "";
 
   function paint(state = pushStateNow()) {
-    if (!GATE_STATES.has(state) || laterThisVisit()) {
+    // Quem desligou de propósito em Atividades não é cobrado de novo: o botão continua lá.
+    const off = state === "idle" && pushTurnedOffHere();
+    if (!GATE_STATES.has(state) || laterThisVisit() || off) {
       slot.hidden = true;
       slot.replaceChildren();
       return;
@@ -241,6 +246,16 @@ export function mountPushGate(slot) {
 
   window.addEventListener("gc:push-state", onState);
   document.addEventListener("visibilitychange", onVisible);
+
+  // O balão de permissão do Chrome e a folha do Android não escondem a página:
+  // quando a permissão muda, confere na hora em vez de esperar a pessoa trocar de aba.
+  navigator.permissions?.query({ name: "notifications" }).then((status) => {
+    status.addEventListener("change", () => {
+      if (!slot.isConnected) return;
+      if (pushStateNow() !== "subscribed") syncPushSubscription();
+    });
+  }).catch(() => {});
+
   paint();
   getPushState().then(() => paint()).catch(() => {});
 }

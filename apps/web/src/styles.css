@@ -2040,7 +2040,7 @@ input, select {
   display: grid;
   gap: 12px;
   padding: 18px 18px 16px;
-  max-height: min(82vh, 680px);
+  max-height: min(78vh, 640px);
   overflow: auto;
 }
 .gate-sheet-body h2 { margin: 0; font-family: Cinzel, Georgia, serif; font-weight: 500; font-size: 20px; }
