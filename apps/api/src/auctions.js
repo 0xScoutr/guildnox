@@ -488,7 +488,7 @@ export async function setAuctionPaused(actor, id, paused) {
   if (!row) throw fail(404, "Leilão não encontrado.");
   if (row.finalized_at) throw fail(400, "Esse leilão já encerrou.");
   if (paused) {
-    await pool.query("UPDATE auctions SET paused_at = now() WHERE id = $1", [id]);
+    await pool.query("UPDATE auctions SET paused_at = now() WHERE id = $1 AND paused_at IS NULL", [id]);
   } else {
     await pool.query(
       `
@@ -525,98 +525,124 @@ export async function updateAuction(actor, id, body, guildId = null) {
   }
   if (guildId == null) throw fail(400, "Escolha uma guilda para continuar.");
 
-  const row = await loadAuctionRow(id);
-  if (!row) throw fail(404, "Leilão não encontrado.");
-  await assertAuctionGuild(row, guildId);
+  // Com o leilão travado: um lance no meio da edição (que estende o fim pelo
+  // anti-snipe) não pode ser desfeito pelo salvar do oficial.
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const { rows: lockedRows } = await client.query("SELECT * FROM auctions WHERE id = $1 FOR UPDATE", [id]);
+    const row = lockedRows[0];
+    if (!row) throw fail(404, "Leilão não encontrado.");
+    await assertAuctionGuild(row, guildId);
 
-  const status = computeStatus(row);
-  if (status === "ended" || row.finalized_at) {
-    throw fail(400, "Não dá para editar leilão encerrado.");
-  }
-
-  const itemName = String(body.itemName ?? row.item_name).trim();
-  if (!itemName || itemName.length > 80) throw fail(400, "Informe o nome do item.");
-  const description = String(body.description ?? row.description ?? "").trim().slice(0, 500);
-
-  const quantity = body.quantity == null ? row.quantity : Number(body.quantity);
-  if (!Number.isInteger(quantity) || quantity < 1 || quantity > 9999) {
-    throw fail(400, "Quantidade inválida.");
-  }
-
-  const resetMinutes = body.resetMinutes == null ? row.reset_minutes : Number(body.resetMinutes);
-  if (!Number.isInteger(resetMinutes) || resetMinutes < 0 || resetMinutes > 120) {
-    throw fail(400, "Minutos de extensão inválidos.");
-  }
-
-  const top = await topBid(row.id);
-  let startingBid = row.starting_bid;
-  if (body.startingBid != null) {
-    const next = Number(body.startingBid);
-    if (!Number.isInteger(next) || next < 1 || next > 1000000) {
-      throw fail(400, "Lance inicial inválido.");
+    const status = computeStatus(row);
+    if (status === "ended" || row.finalized_at) {
+      throw fail(400, "Não dá para editar leilão encerrado.");
     }
-    if (top && next !== row.starting_bid) {
-      throw fail(400, "Não dá para mudar o lance inicial depois que já houve lances.");
+
+    const itemName = String(body.itemName ?? row.item_name).trim();
+    if (!itemName || itemName.length > 80) throw fail(400, "Informe o nome do item.");
+    const description = String(body.description ?? row.description ?? "").trim().slice(0, 500);
+
+    const quantity = body.quantity == null ? row.quantity : Number(body.quantity);
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 9999) {
+      throw fail(400, "Quantidade inválida.");
     }
-    startingBid = next;
-  }
 
-  let startsAt = new Date(row.starts_at);
-  if (body.startsAt != null) {
-    if (status !== "upcoming") {
-      throw fail(400, "Só dá para mudar o horário de início antes do leilão começar.");
+    const resetMinutes = body.resetMinutes == null ? row.reset_minutes : Number(body.resetMinutes);
+    if (!Number.isInteger(resetMinutes) || resetMinutes < 0 || resetMinutes > 120) {
+      throw fail(400, "Minutos de extensão inválidos.");
     }
-    startsAt = new Date(body.startsAt);
-    if (Number.isNaN(startsAt.getTime())) throw fail(400, "Início inválido.");
-  }
 
-  const prevDurationMs = new Date(row.expires_at).getTime() - new Date(row.starts_at).getTime();
-  let expiresAt = new Date(startsAt.getTime() + Math.max(60_000, prevDurationMs));
-  if (body.durationMinutes != null) {
-    const durationMinutes = Number(body.durationMinutes);
-    if (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 7 * 24 * 60) {
-      throw fail(400, "Duração inválida.");
+    const top = await topBid(row.id, client);
+    let startingBid = row.starting_bid;
+    if (body.startingBid != null) {
+      const next = Number(body.startingBid);
+      if (!Number.isInteger(next) || next < 1 || next > 1000000) {
+        throw fail(400, "Lance inicial inválido.");
+      }
+      if (top && next !== row.starting_bid) {
+        throw fail(400, "Não dá para mudar o lance inicial depois que já houve lances.");
+      }
+      startingBid = next;
     }
-    expiresAt = new Date(startsAt.getTime() + durationMinutes * 60 * 1000);
-  }
 
-  if (expiresAt.getTime() <= startsAt.getTime()) {
-    throw fail(400, "O fim precisa ser depois do início.");
-  }
-  if ((status === "live" || status === "paused") && expiresAt.getTime() <= Date.now()) {
-    throw fail(400, "A duração precisa deixar o leilão ainda aberto.");
-  }
+    let startsAt = new Date(row.starts_at);
+    let startsChanged = false;
+    if (body.startsAt != null) {
+      const nextStart = new Date(body.startsAt);
+      if (Number.isNaN(nextStart.getTime())) throw fail(400, "Início inválido.");
+      if (nextStart.getTime() !== startsAt.getTime()) {
+        if (status !== "upcoming") {
+          throw fail(400, "Só dá para mudar o horário de início antes do leilão começar.");
+        }
+        startsAt = nextStart;
+        startsChanged = true;
+      }
+    }
 
-  let imageData = row.image_data;
-  if (Object.prototype.hasOwnProperty.call(body, "imageData")) {
-    imageData = normalizeImageData(body.imageData);
-  }
+    // O site sempre manda a duração arredondada em minutos. Só mexe no fim se ela mudou
+    // de verdade (ou se o início mudou); senão mantém o fim atual, que pode ter sido
+    // estendido por um lance nos últimos minutos.
+    const prevDurationMs = new Date(row.expires_at).getTime() - new Date(row.starts_at).getTime();
+    let expiresAt = new Date(row.expires_at);
+    const requestedDuration = body.durationMinutes == null ? null : Number(body.durationMinutes);
+    if (requestedDuration != null) {
+      if (!Number.isInteger(requestedDuration) || requestedDuration < 1 || requestedDuration > 7 * 24 * 60) {
+        throw fail(400, "Duração inválida.");
+      }
+    }
+    const durationChanged = requestedDuration != null && requestedDuration !== Math.round(prevDurationMs / 60_000);
+    if (durationChanged) {
+      expiresAt = new Date(startsAt.getTime() + requestedDuration * 60 * 1000);
+    } else if (startsChanged) {
+      expiresAt = new Date(startsAt.getTime() + Math.max(60_000, prevDurationMs));
+    }
 
-  await pool.query(
-    `
-    UPDATE auctions
-    SET item_name = $2,
-        description = $3,
-        starting_bid = $4,
-        quantity = $5,
-        reset_minutes = $6,
-        starts_at = $7,
-        expires_at = $8,
-        image_data = $9
-    WHERE id = $1
-    `,
-    [
-      id,
-      itemName,
-      description,
-      startingBid,
-      quantity,
-      resetMinutes,
-      startsAt.toISOString(),
-      expiresAt.toISOString(),
-      imageData,
-    ],
-  );
+    if (expiresAt.getTime() <= startsAt.getTime()) {
+      throw fail(400, "O fim precisa ser depois do início.");
+    }
+    if ((status === "live" || status === "paused") && durationChanged && expiresAt.getTime() <= Date.now()) {
+      throw fail(400, "A duração precisa deixar o leilão ainda aberto.");
+    }
+
+    let imageData = row.image_data;
+    if (Object.prototype.hasOwnProperty.call(body, "imageData")) {
+      imageData = normalizeImageData(body.imageData);
+    }
+
+    await client.query(
+      `
+      UPDATE auctions
+      SET item_name = $2,
+          description = $3,
+          starting_bid = $4,
+          quantity = $5,
+          reset_minutes = $6,
+          starts_at = $7,
+          expires_at = $8,
+          image_data = $9
+      WHERE id = $1
+      `,
+      [
+        id,
+        itemName,
+        description,
+        startingBid,
+        quantity,
+        resetMinutes,
+        startsAt.toISOString(),
+        expiresAt.toISOString(),
+        imageData,
+      ],
+    );
+    await client.query("COMMIT");
+  } catch (error) {
+    try { await client.query("ROLLBACK"); } catch { /* ignore */ }
+    throw error;
+  } finally {
+    client.release();
+  }
 
   return getAuction(id, actor, guildId);
 }
