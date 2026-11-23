@@ -1,3 +1,4 @@
+import { brtEndOfDay, brtStartOfDay, brtToday } from "./brt-time.js";
 import { pool, present } from "./db.js";
 
 function fail(status, message) {
@@ -10,32 +11,24 @@ function nickOf(member) {
   return member.character_name || member.global_name || member.username;
 }
 
-function startOfDay(date) {
-  const next = new Date(date);
-  next.setHours(0, 0, 0, 0);
-  return next;
-}
-
-function endOfDay(date) {
-  const next = new Date(date);
-  next.setHours(23, 59, 59, 999);
-  return next;
-}
-
+// Os dias do ranking são os de Brasília (o servidor roda em UTC).
 function parseDay(value, label) {
   if (!value) return null;
   const match = String(value).trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) throw fail(400, `${label} inválida.`);
-  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
-  if (Number.isNaN(date.getTime())) throw fail(400, `${label} inválida.`);
-  return date;
+  const day = { year: Number(match[1]), month: Number(match[2]), day: Number(match[3]) };
+  const check = new Date(Date.UTC(day.year, day.month - 1, day.day));
+  if (check.getUTCMonth() !== day.month - 1 || check.getUTCDate() !== day.day) throw fail(400, `${label} inválida.`);
+  return day;
 }
 
 function defaultRange() {
-  const end = endOfDay(new Date());
-  const start = startOfDay(new Date());
-  start.setDate(start.getDate() - 9);
-  return { start, end };
+  const today = brtToday();
+  const first = brtToday(-9);
+  return {
+    start: brtStartOfDay(first.year, first.month, first.day),
+    end: brtEndOfDay(today.year, today.month, today.day),
+  };
 }
 
 export async function getRanking(query = {}, guildId = null) {
@@ -46,9 +39,9 @@ export async function getRanking(query = {}, guildId = null) {
     const from = parseDay(query.from, "Data inicial");
     const to = parseDay(query.to, "Data final");
     if (!from || !to) throw fail(400, "Informe as duas datas do período.");
-    if (from > to) throw fail(400, "A data inicial não pode ser depois da final.");
-    start = startOfDay(from);
-    end = endOfDay(to);
+    start = brtStartOfDay(from.year, from.month, from.day);
+    end = brtEndOfDay(to.year, to.month, to.day);
+    if (start > end) throw fail(400, "A data inicial não pode ser depois da final.");
   } else {
     ({ start, end } = defaultRange());
   }
@@ -68,6 +61,8 @@ export async function getRanking(query = {}, guildId = null) {
     FROM activities
     WHERE guild_id = $3
       AND starts_at >= $1 AND starts_at <= $2
+      -- Boss que ainda não aconteceu não entra na conta (senão todo mundo cai de 100%).
+      AND starts_at <= now()
     ORDER BY starts_at ASC
     `,
     [start.toISOString(), end.toISOString(), guildId],

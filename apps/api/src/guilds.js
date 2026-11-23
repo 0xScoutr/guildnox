@@ -1,3 +1,4 @@
+import { brtDateString, brtEndOfDay, brtStartOfDay, brtToday } from "./brt-time.js";
 import { pool, present } from "./db.js";
 
 export const MAX_GUILDS = 5;
@@ -582,11 +583,11 @@ export async function getGuildsParticipationAverage() {
   // Mesma régua da Fate: média dos últimos 7 dias, % = participantes da guild
   // / 50 vagas (vaga sem membro = 0%), e só conta quem já estava na guild
   // quando a atividade abriu. Atividade sem participante não entra.
-  const end = new Date();
-  end.setHours(23, 59, 59, 999);
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  start.setDate(start.getDate() - (PARTICIPATION_DAYS - 1));
+  // Dias de Brasília: o servidor roda em UTC.
+  const today = brtToday();
+  const first = brtToday(-(PARTICIPATION_DAYS - 1));
+  const end = brtEndOfDay(today.year, today.month, today.day);
+  const start = brtStartOfDay(first.year, first.month, first.day);
 
   const guilds = await pool.query(`
     SELECT g.*,
@@ -648,8 +649,8 @@ export async function getGuildsParticipationAverage() {
 
   return {
     dias: PARTICIPATION_DAYS,
-    from: start.toISOString().slice(0, 10),
-    to: end.toISOString().slice(0, 10),
+    from: brtDateString(first),
+    to: brtDateString(today),
     guilds: out,
   };
 }
