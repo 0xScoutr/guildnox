@@ -588,6 +588,8 @@ app.patch("/api/members/:discordId", requireUser, wrap(async (req, res) => {
   const master = actor.role === "master";
   if (!isSelf && !officer) throw fail(403, "Você só pode editar a própria ficha.");
   if ("dkp" in req.body && !officer) throw fail(403, "Só o mestre ou um admin altera DKP.");
+  // Admin não mexe no próprio DKP (só o mestre); todo ajuste fica com o nome de quem fez.
+  if ("dkp" in req.body && isSelf && !master) throw fail(403, "Peça pro mestre ajustar o seu DKP.");
   if ("role" in req.body && !master) throw fail(403, "Só o mestre altera cargos.");
   if ("guildId" in req.body && !officer) throw fail(403, "Só o mestre ou um admin altera a guilda do membro.");
   if ("pilotAccount" in req.body && !officer) throw fail(403, "Só o mestre ou um admin marca piloto.");
@@ -634,7 +636,8 @@ app.patch("/api/members/:discordId", requireUser, wrap(async (req, res) => {
         nextDkp,
         expectedDkp,
         reason: "adjustment",
-        label: "Ajuste manual",
+        label: `Ajuste manual por ${actor.character_name || actor.global_name || actor.username}`,
+        actorDiscordId: actor.discord_id,
       });
       await client.query("COMMIT");
     } catch (error) {

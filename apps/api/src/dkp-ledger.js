@@ -30,6 +30,12 @@ export async function migrateDkpLedger() {
     ON dkp_ledger (member_discord_id, ref_type, ref_id)
     WHERE ref_type IS NOT NULL AND ref_id IS NOT NULL
   `);
+  // Quem fez o ajuste manual. Sem chave estrangeira: o histórico continua mesmo se o
+  // oficial sair da guilda.
+  await pool.query(`
+    ALTER TABLE dkp_ledger
+    ADD COLUMN IF NOT EXISTS actor_discord_id TEXT
+  `);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS dkp_ledger_meta (
       key TEXT PRIMARY KEY,
@@ -118,6 +124,7 @@ export async function setDkpAbsolute(client, {
   expectedDkp = null,
   reason = "adjustment",
   label = "Ajuste manual",
+  actorDiscordId = null,
 }) {
   const locked = await client.query(
     "SELECT dkp FROM members WHERE discord_id = $1 FOR UPDATE",
@@ -146,10 +153,10 @@ export async function setDkpAbsolute(client, {
   await client.query(
     `
     INSERT INTO dkp_ledger
-      (member_discord_id, amount, balance_after, reason, label, ref_type, ref_id)
-    VALUES ($1, $2, $3, $4, $5, NULL, NULL)
+      (member_discord_id, amount, balance_after, reason, label, ref_type, ref_id, actor_discord_id)
+    VALUES ($1, $2, $3, $4, $5, NULL, NULL, $6)
     `,
-    [discordId, delta, target, reason, label],
+    [discordId, delta, target, reason, label, actorDiscordId],
   );
   return { amount: delta, balanceAfter: target };
 }

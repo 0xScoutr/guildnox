@@ -1557,6 +1557,8 @@ function openSheet(member) {
   // precisa mostrar e comparar com o saldo total.
   let initialDkp = Number(member.dkpTotal ?? member.dkp);
   const dkp = el("input", { name: "dkp", type: "number", min: "-1000000", max: "1000000", required: "required", value: String(initialDkp) });
+  // Admin não ajusta o próprio DKP (a API recusa); só o mestre.
+  if (isSelf && !master) dkp.disabled = true;
   const role = el("select", { name: "role" }, ["master", "admin", "member"].map((value) => {
     const option = el("option", { value, text: roleLabel(value) });
     if (value === member.role) option.selected = true;
