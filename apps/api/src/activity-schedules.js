@@ -207,19 +207,91 @@ export async function updateSchedule(actor, id, body = {}, guildId) {
   }
   if (!sets.length) return present(current);
   values.push(id);
-  const { rows } = await pool.query(
-    `UPDATE activity_schedules SET ${sets.join(", ")}, updated_at = now() WHERE id = $${values.length} RETURNING *`,
-    values,
-  );
+  const client = await pool.connect();
+  let updated;
+  try {
+    await client.query("BEGIN");
+    const { rows } = await client.query(
+      `UPDATE activity_schedules SET ${sets.join(", ")}, updated_at = now() WHERE id = $${values.length} RETURNING *`,
+      values,
+    );
+    updated = rows[0];
+    await syncUpcoming(client, id);
+    await client.query("COMMIT");
+  } catch (error) {
+    try { await client.query("ROLLBACK"); } catch { /* ignore */ }
+    throw error;
+  } finally {
+    client.release();
+  }
   kickActivitySchedules();
-  return present(rows[0]);
+  return present(updated);
+}
+
+/**
+ * Leva a mudança da agenda para as atividades que ela já criou e que ainda não
+ * começaram: nome, DKP e duração novos; e some com as que não batem mais com os
+ * dias, horários e fuso (ou com a agenda pausada). As que já começaram não mudam.
+ */
+async function syncUpcoming(client, scheduleId) {
+  await client.query(
+    `
+    UPDATE activities a
+    SET name = s.name,
+        dkp_value = s.dkp_value,
+        duration_minutes = s.duration_minutes,
+        expires_at = a.starts_at + make_interval(mins => s.duration_minutes)
+    FROM activity_schedules s
+    WHERE s.id = $1 AND a.schedule_id = s.id AND a.starts_at > now() AND a.finalized_at IS NULL
+    `,
+    [scheduleId],
+  );
+  const { rows } = await client.query(
+    `
+    DELETE FROM activities a
+    USING activity_schedules s
+    WHERE s.id = $1
+      AND a.schedule_id = s.id
+      AND a.starts_at > now()
+      AND (
+        NOT s.active
+        OR NOT (EXTRACT(DOW FROM (a.starts_at AT TIME ZONE s.timezone))::int = ANY(s.weekdays))
+        OR NOT (to_char(a.starts_at AT TIME ZONE s.timezone, 'HH24:MI') = ANY(s.times))
+      )
+    RETURNING a.starts_at
+    `,
+    [scheduleId],
+  );
+  // O gatilho anota como "pulado" o que foi apagado; aqui foi a agenda que mudou,
+  // não um oficial cancelando, então tira a anotação para o horário poder voltar.
+  if (rows.length) {
+    await client.query(
+      "DELETE FROM activity_schedule_skips WHERE schedule_id = $1 AND starts_at = ANY($2::timestamptz[])",
+      [scheduleId, rows.map((row) => row.starts_at)],
+    );
+  }
 }
 
 export async function deleteSchedule(actor, id, guildId) {
   assertOfficer(actor);
   await loadOwn(id, guildId);
-  // As atividades que já foram criadas ficam; só param de nascer novas.
-  await pool.query("DELETE FROM activity_schedules WHERE id = $1", [id]);
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    // Some com as que ainda não começaram; as que já começaram ou acabaram ficam.
+    await client.query(
+      "DELETE FROM activities WHERE schedule_id = $1 AND starts_at > now()",
+      [id],
+    );
+    await client.query("DELETE FROM activity_schedules WHERE id = $1", [id]);
+    await client.query("DELETE FROM activity_schedule_skips WHERE schedule_id = $1", [id]);
+    await client.query("COMMIT");
+  } catch (error) {
+    try { await client.query("ROLLBACK"); } catch { /* ignore */ }
+    throw error;
+  } finally {
+    client.release();
+  }
   return { ok: true, id: Number(id) };
 }
 
