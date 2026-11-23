@@ -326,6 +326,23 @@ export async function expelMember(actor, targetDiscordId) {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+    // Trava primeiro os leilões abertos que envolvem o expulso e só depois o membro: a
+    // cobrança do leilão trava nessa mesma ordem (leilão, depois membro). Na ordem
+    // contrária as duas podiam se travar uma esperando a outra.
+    await client.query(
+      `
+      SELECT a.id FROM auctions a
+      WHERE a.finalized_at IS NULL
+        AND (
+          a.winner_discord_id = $1
+          OR a.created_by = $1
+          OR EXISTS (SELECT 1 FROM auction_bids b WHERE b.auction_id = a.id AND b.bidder_discord_id = $1)
+        )
+      ORDER BY a.id
+      FOR UPDATE
+      `,
+      [targetDiscordId],
+    );
     const locked = await client.query(
       "SELECT * FROM members WHERE discord_id = $1 FOR UPDATE",
       [targetDiscordId],
@@ -393,6 +410,16 @@ export async function expelMember(actor, targetDiscordId) {
     await client.query(
       "UPDATE activities SET created_by = $2 WHERE created_by = $1",
       [targetDiscordId, actor.discord_id],
+    );
+    // Pedidos que ele aprovou e vínculos de piloto que ele criou guardam o nome dele sem
+    // regra de exclusão: sem isso o DELETE falhava e a expulsão dava erro 500.
+    await client.query(
+      "UPDATE guild_applications SET resolved_by = NULL WHERE resolved_by = $1",
+      [targetDiscordId],
+    );
+    await client.query(
+      "UPDATE account_pilots SET created_by = NULL WHERE created_by = $1",
+      [targetDiscordId],
     );
     await client.query("DELETE FROM members WHERE discord_id = $1", [targetDiscordId]);
 
