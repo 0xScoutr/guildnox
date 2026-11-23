@@ -1279,7 +1279,7 @@ function openSheet(member) {
   // Na própria ficha, member.dkp é o disponível (sem o reservado em lance); o campo
   // precisa mostrar e comparar com o saldo total.
   let initialDkp = Number(member.dkpTotal ?? member.dkp);
-  const dkp = el("input", { name: "dkp", type: "number", min: "-1000000", max: "1000000", value: String(initialDkp) });
+  const dkp = el("input", { name: "dkp", type: "number", min: "-1000000", max: "1000000", required: "required", value: String(initialDkp) });
   const role = el("select", { name: "role" }, ["master", "admin", "member"].map((value) => {
     const option = el("option", { value, text: roleLabel(value) });
     if (value === member.role) option.selected = true;
@@ -1364,7 +1364,8 @@ function openSheet(member) {
       power: Number(power.value),
     };
     // Só manda o DKP se o oficial mexeu nele, junto com o valor que estava na tela.
-    if (officer && Number(dkp.value) !== initialDkp) {
+    // Campo apagado conta como "não mexeu" (Number("") daria 0 e zeraria o saldo).
+    if (officer && dkp.value.trim() !== "" && Number(dkp.value) !== initialDkp) {
       body.dkp = Number(dkp.value);
       body.expectedDkp = initialDkp;
     }
