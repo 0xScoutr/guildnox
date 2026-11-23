@@ -185,7 +185,17 @@ export async function sendActivityDiscord(kind, activity) {
     return { sent: 0 };
   }
 
-  await postWebhook(config.url, payload);
+  try {
+    await postWebhook(config.url, payload);
+  } catch (error) {
+    // Sem resposta a tempo, o Discord pode ter postado mesmo assim: não lança, para o
+    // agendador não tentar de novo e duplicar a mensagem no canal.
+    if (error?.name === "TimeoutError" || error?.name === "AbortError") {
+      console.error(`aviso discord ${kind} #${activity.id}: sem resposta a tempo, sem nova tentativa`);
+      return { sent: 0, failed: 1 };
+    }
+    throw error;
+  }
   return { sent: 1 };
 }
 
