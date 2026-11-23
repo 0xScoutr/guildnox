@@ -58,6 +58,14 @@ import {
   selectGuild,
   setGuildActive,
 } from "./guilds.js";
+import {
+  createSchedule,
+  deleteSchedule,
+  listSchedules,
+  migrateActivitySchedules,
+  startActivitySchedules,
+  updateSchedule,
+} from "./activity-schedules.js";
 import { getRanking } from "./ranking.js";
 import {
   acceptPilotInvite,
@@ -681,6 +689,30 @@ app.delete("/api/activities/:id", requireUser, requireGuild, wrap(async (req, re
   res.json(await deleteActivity(req.member, id, req.guildId));
 }));
 
+// Agenda automática de bosses (só oficiais; a guilda é a que o oficial está gerenciando).
+app.get("/api/activity-schedules", requireUser, requireGuild, wrap(async (req, res) => {
+  res.json({ schedules: await listSchedules(req.member, req.guildId) });
+}));
+
+app.post("/api/activity-schedules", requireUser, requireGuild, wrap(async (req, res) => {
+  if (req.pilotContext?.piloting) throw fail(403, "Piloto não mexe na agenda.");
+  res.status(201).json({ schedule: await createSchedule(req.member, req.body || {}, req.guildId) });
+}));
+
+app.patch("/api/activity-schedules/:id", requireUser, requireGuild, wrap(async (req, res) => {
+  if (req.pilotContext?.piloting) throw fail(403, "Piloto não mexe na agenda.");
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id < 1) throw fail(400, "Agenda inválida.");
+  res.json({ schedule: await updateSchedule(req.member, id, req.body || {}, req.guildId) });
+}));
+
+app.delete("/api/activity-schedules/:id", requireUser, requireGuild, wrap(async (req, res) => {
+  if (req.pilotContext?.piloting) throw fail(403, "Piloto não mexe na agenda.");
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id < 1) throw fail(400, "Agenda inválida.");
+  res.json(await deleteSchedule(req.member, id, req.guildId));
+}));
+
 app.get("/api/ranking", requireUser, requireGuild, wrap(async (req, res) => {
   res.json(await getRanking(req.query || {}, req.guildId));
 }));
@@ -709,6 +741,8 @@ await migrateActivities();
 await migrateGuilds();
 await migratePilots();
 await migrateDkpLedger();
+await migrateActivitySchedules();
 app.listen(PORT, () => {
   console.log(`guildnox api em :${PORT}`);
+  startActivitySchedules();
 });

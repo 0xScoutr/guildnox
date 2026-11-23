@@ -8,6 +8,7 @@ import {
   unlockActivityAudio,
   watchActivityOpenings,
 } from "./activity-alert.js";
+import { openAgenda } from "./agenda.js";
 import { t } from "./i18n.js";
 import { showToast } from "./toast.js";
 
@@ -538,11 +539,18 @@ export function activitiesView({ api, me, onMemberUpdate }) {
           }),
         ]),
         officer
-          ? el("button", {
-            className: "btn btn-small",
-            type: "button",
-            onClick: () => openCreateActivity(api, refresh),
-          }, [t("act.new")])
+          ? el("div", { className: "activities-head-actions" }, [
+            el("button", {
+              className: "btn btn-ghost btn-small",
+              type: "button",
+              onClick: () => openAgenda(api, refresh),
+            }, [t("agenda.button")]),
+            el("button", {
+              className: "btn btn-small",
+              type: "button",
+              onClick: () => openCreateActivity(api, refresh),
+            }, [t("act.new")]),
+          ])
           : null,
       ]),
       el("div", { className: "panel auction-toolbar" }, [
