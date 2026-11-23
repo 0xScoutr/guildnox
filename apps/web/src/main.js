@@ -1278,7 +1278,7 @@ function openSheet(member) {
   });
   // Na própria ficha, member.dkp é o disponível (sem o reservado em lance); o campo
   // precisa mostrar e comparar com o saldo total.
-  const initialDkp = Number(member.dkpTotal ?? member.dkp);
+  let initialDkp = Number(member.dkpTotal ?? member.dkp);
   const dkp = el("input", { name: "dkp", type: "number", min: "-1000000", max: "1000000", value: String(initialDkp) });
   const role = el("select", { name: "role" }, ["master", "admin", "member"].map((value) => {
     const option = el("option", { value, text: roleLabel(value) });
@@ -1379,6 +1379,16 @@ function openSheet(member) {
       dialog.close();
       await render();
     } catch (err) {
+      // DKP mudou com a ficha aberta: mostra o saldo de agora e passa a comparar com ele,
+      // para o oficial conferir e salvar de novo sem ficar preso no mesmo erro.
+      const currentDkp = err.data?.currentDkp;
+      if (err.status === 409 && typeof currentDkp === "number") {
+        initialDkp = currentDkp;
+        dkp.value = String(currentDkp);
+        // Na própria ficha, dkp é o disponível e dkpTotal o total; na lista, dkp é o total.
+        if (member.dkpTotal != null) member.dkpTotal = currentDkp;
+        else member.dkp = currentDkp;
+      }
       error.hidden = false;
       error.textContent = err.message;
       save.disabled = false;
