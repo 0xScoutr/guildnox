@@ -37,7 +37,10 @@ function offsetMinutes(date) {
 /** Instante da meia-noite de Brasília do dia (ano, mês 1-12, dia). */
 export function brtStartOfDay(year, month, day) {
   const guess = Date.UTC(year, month - 1, day);
-  return new Date(guess - offsetMinutes(new Date(guess)) * 60_000);
+  const first = new Date(guess - offsetMinutes(new Date(guess)) * 60_000);
+  // Segunda passada: se o fuso mudou entre o palpite e o resultado (horário de verão),
+  // usa o deslocamento do próprio resultado.
+  return new Date(guess - offsetMinutes(first) * 60_000);
 }
 
 /** Último milissegundo do dia em Brasília. */

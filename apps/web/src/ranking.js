@@ -92,10 +92,11 @@ function crownIcon() {
 }
 
 function toInputDay(value) {
-  const date = new Date(value);
+  // Os dias do ranking são os de Brasília; mostrar no fuso do navegador deslocava a data
+  // para quem está em outro fuso.
+  const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return "";
-  const pad = (n) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(date);
 }
 
 function stamp() {
