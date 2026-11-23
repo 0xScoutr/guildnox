@@ -10,12 +10,13 @@ const TIMEZONES = [
 ];
 const EVERY_DAY = [0, 1, 2, 3, 4, 5, 6];
 
-// Horários de Geena no Rust 1 (servidor da América do Norte, UTC-5), já em Brasília.
+// Horários de Geena no Rust 1 (servidor da América do Norte, UTC-5), já em Brasília,
+// com os nomes da tela "Informações da Masmorra" do jogo.
 // Entram pausados para os oficiais conferirem o DKP antes de ativar.
 const GEENA_RUST1 = [
-  { name: "Geena: chefes 1 estrela", dkpValue: 10, durationMinutes: 30, weekdays: EVERY_DAY, times: ["15:00", "19:00", "23:00"] },
-  { name: "Geena: chefes 2 estrelas", dkpValue: 20, durationMinutes: 30, weekdays: EVERY_DAY, times: ["15:00", "23:00"] },
-  { name: "Geena: Enoch e Mashumid (3 estrelas)", dkpValue: 40, durationMinutes: 30, weekdays: [0], times: ["00:00"] },
+  { name: "Chefe de Geena 1 Estrela", dkpValue: 10, durationMinutes: 30, weekdays: EVERY_DAY, times: ["15:00", "19:00", "23:00"] },
+  { name: "Chefe de Geena 2 Estrelas", dkpValue: 20, durationMinutes: 30, weekdays: EVERY_DAY, times: ["15:00", "23:00"] },
+  { name: "Chefe de Geena 3 Estrelas", dkpValue: 40, durationMinutes: 30, weekdays: [0], times: ["00:00"] },
 ];
 
 function el(tag, props = {}, children = []) {
@@ -204,7 +205,7 @@ export function openAgenda(api, onChange) {
   }
 
   function addButton() {
-    const hasGeena = schedules.some((item) => item.name.startsWith("Geena:"));
+    const hasGeena = schedules.some((item) => item.name.startsWith("Chefe de Geena"));
     return el("div", { className: "agenda-form-actions agenda-add-row" }, [
       hasGeena ? null : el("button", {
         type: "button",
