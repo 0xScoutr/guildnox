@@ -63,6 +63,8 @@ export function openAgenda(api, onChange) {
   }
 
   function drawList() {
+    // O botão do modelo some quando os chefes de Geena já estão na agenda.
+    if (formSlot.querySelector(".agenda-add-row")) formSlot.replaceChildren(addButton());
     if (!schedules.length) {
       list.replaceChildren(el("p", { className: "muted agenda-empty", text: t("agenda.empty") }));
       return;
@@ -202,8 +204,9 @@ export function openAgenda(api, onChange) {
   }
 
   function addButton() {
+    const hasGeena = schedules.some((item) => item.name.startsWith("Geena:"));
     return el("div", { className: "agenda-form-actions agenda-add-row" }, [
-      el("button", {
+      hasGeena ? null : el("button", {
         type: "button",
         className: "btn btn-ghost btn-small",
         title: t("agenda.geenaHint"),
