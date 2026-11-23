@@ -343,6 +343,12 @@ export async function expelMember(actor, targetDiscordId) {
       `,
       [targetDiscordId],
     );
+    // Mesma ideia para as atividades que ele criou: o check-in trava a atividade e depois
+    // o membro, então a expulsão trava nessa ordem também.
+    await client.query(
+      "SELECT id FROM activities WHERE created_by = $1 AND finalized_at IS NULL ORDER BY id FOR UPDATE",
+      [targetDiscordId],
+    );
     const locked = await client.query(
       "SELECT * FROM members WHERE discord_id = $1 FOR UPDATE",
       [targetDiscordId],
