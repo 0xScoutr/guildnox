@@ -1,4 +1,5 @@
 import { jobPool, pool } from "./db.js";
+import { sendActivityDiscord } from "./discord-notify.js";
 import { pushEnabled, sendActivityPush } from "./push.js";
 
 /**
@@ -18,9 +19,11 @@ const TICK_MS = 30_000;
 const SOON_MINUTES = 5;
 const REMINDER_MINUTES = 10;
 
-// Cada canal recebe (kind, activity). O push é o primeiro; outros canais entram aqui.
+// Cada canal recebe (kind, activity). O Discord fica sempre ligado porque o
+// webhook é configurado por guilda, a qualquer hora; sem webhook ele não envia nada.
 const CHANNELS = [
   { name: "push", enabled: pushEnabled, send: sendActivityPush },
+  { name: "discord", enabled: () => true, send: sendActivityDiscord },
 ];
 
 function anyChannel() {
@@ -86,9 +89,9 @@ const CLAIMS = [
 const RETRY_DELAY_MS = 3_000;
 
 /**
- * Manda por um canal, com uma nova tentativa. Os canais só lançam erro antes de
- * enviar (ler destinatários ou configuração); depois do envio eles só registram no
- * log. Então tentar de novo não duplica o aviso.
+ * Manda por um canal, com uma nova tentativa. Os canais só lançam erro quando o
+ * aviso não saiu (falha ao ler destinatários ou configuração, ou o Discord recusou);
+ * depois do envio eles só registram no log. Então tentar de novo não duplica o aviso.
  */
 async function deliverTo(channel, kind, activity) {
   for (let attempt = 1; attempt <= 2; attempt += 1) {

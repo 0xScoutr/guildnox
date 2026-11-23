@@ -67,6 +67,7 @@ import {
   sendTestPush,
 } from "./push.js";
 import { migrateActivityNotify, startActivityNotify } from "./activity-notify.js";
+import { discordStatusByGuild, migrateDiscordNotify, setGuildDiscord, testGuildDiscord } from "./discord-notify.js";
 import { getRanking } from "./ranking.js";
 import {
   acceptPilotInvite,
@@ -381,7 +382,13 @@ app.get("/api/guilds/participation-average", requireUser, wrap(async (_req, res)
 
 app.get("/api/guilds", requireUser, wrap(async (req, res) => {
   if (!isOfficer(req.member)) throw fail(403, "Só o mestre ou um admin gerencia guildas.");
-  res.json({ guilds: await listGuilds() });
+  const [guilds, discord] = await Promise.all([listGuilds(), discordStatusByGuild()]);
+  res.json({
+    guilds: guilds.map((guild) => ({
+      ...guild,
+      discord: discord.get(guild.id) || { configured: false, mention: null },
+    })),
+  });
 }));
 
 app.post("/api/guilds", requireUser, wrap(async (req, res) => {
@@ -398,6 +405,18 @@ app.patch("/api/guilds/:id", requireUser, wrap(async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id < 1) throw fail(400, "Guilda inválida.");
   res.json({ guild: await renameGuild(req.member, id, req.body || {}) });
+}));
+
+app.patch("/api/guilds/:id/discord", requireUser, wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id < 1) throw fail(400, "Guilda inválida.");
+  res.json({ discord: await setGuildDiscord(req.member, id, req.body || {}) });
+}));
+
+app.post("/api/guilds/:id/discord/test", requireUser, wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id < 1) throw fail(400, "Guilda inválida.");
+  res.json(await testGuildDiscord(req.member, id));
 }));
 
 app.delete("/api/guilds/:id", requireUser, wrap(async (req, res) => {
@@ -798,6 +817,7 @@ await migratePilots();
 await migrateDkpLedger();
 await migratePush();
 await migrateActivityNotify();
+await migrateDiscordNotify();
 configurePush();
 app.listen(PORT, () => {
   console.log(`guildnox api em :${PORT}`);
