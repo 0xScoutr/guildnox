@@ -1553,7 +1553,10 @@ function openSheet(member) {
     max: "2000000000",
     value: String(member.power),
   });
-  const dkp = el("input", { name: "dkp", type: "number", min: "-1000000", max: "1000000", value: String(member.dkp) });
+  // Na própria ficha, member.dkp é o disponível (sem o reservado em lance); o campo
+  // precisa mostrar e comparar com o saldo total.
+  let initialDkp = Number(member.dkpTotal ?? member.dkp);
+  const dkp = el("input", { name: "dkp", type: "number", min: "-1000000", max: "1000000", required: "required", value: String(initialDkp) });
   const role = el("select", { name: "role" }, ["master", "admin", "member"].map((value) => {
     const option = el("option", { value, text: roleLabel(value) });
     if (value === member.role) option.selected = true;
@@ -1650,7 +1653,12 @@ function openSheet(member) {
       level: Number(level.value),
       power: Number(power.value),
     };
-    if (officer) body.dkp = Number(dkp.value);
+    // Só manda o DKP se o oficial mexeu nele, junto com o valor que estava na tela.
+    // Campo apagado conta como "não mexeu" (Number("") daria 0 e zeraria o saldo).
+    if (officer && dkp.value.trim() !== "" && Number(dkp.value) !== initialDkp) {
+      body.dkp = Number(dkp.value);
+      body.expectedDkp = initialDkp;
+    }
     if (officer && guildSelect.value === "__pilot__") {
       body.pilotAccount = true;
     } else if (officer && guildSelect.value) {
@@ -1666,6 +1674,16 @@ function openSheet(member) {
       dialog.close();
       await render();
     } catch (err) {
+      // DKP mudou com a ficha aberta: mostra o saldo de agora e passa a comparar com ele,
+      // para o oficial conferir e salvar de novo sem ficar preso no mesmo erro.
+      const currentDkp = err.data?.currentDkp;
+      if (err.status === 409 && typeof currentDkp === "number") {
+        initialDkp = currentDkp;
+        dkp.value = String(currentDkp);
+        // Na própria ficha, dkp é o disponível e dkpTotal o total; na lista, dkp é o total.
+        if (member.dkpTotal != null) member.dkpTotal = currentDkp;
+        else member.dkp = currentDkp;
+      }
       error.hidden = false;
       error.textContent = err.message;
       save.disabled = false;
