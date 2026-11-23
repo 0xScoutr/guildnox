@@ -1848,18 +1848,25 @@ input, select {
   .sidebar-brand { flex-direction: row; gap: 10px; padding: 0; }
   .sidebar-brand .medallion { --size: 42px; }
   .brand-name { font-size: 14px; letter-spacing: 0.1em; }
-  /* O menu vai para uma linha própria e desliza para o lado quando não cabe. */
+  /* O menu vai para uma linha própria e quebra em duas se não couber: todas as
+     páginas ficam à vista, inclusive a atual. */
   .nav {
     order: 3;
     flex: 1 1 100%;
     flex-direction: row;
+    flex-wrap: wrap;
+    gap: 4px;
     min-width: 0;
-    overflow-x: auto;
-    scrollbar-width: none;
   }
-  .nav::-webkit-scrollbar { display: none; }
   .nav button { flex: 0 0 auto; width: auto; }
   .sidebar-foot { margin-top: 0; margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  /* Idioma, tema e Sair numa linha só, para o topo não ocupar meia tela no celular. */
+  .sidebar-foot .toolbar-switches { width: auto; flex-direction: row; flex-wrap: nowrap; align-items: center; }
+  .sidebar-foot .lang-switch { width: auto; min-width: 0; }
+  .sidebar-foot .lang-select { min-width: 0; width: auto; max-width: 150px; }
+  .sidebar-guild-switcher { flex: 1 1 200px; width: auto; margin: 0; }
+  .lang-switch-label,
+  .sidebar-guild-switcher label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .logout { margin-top: 0; width: auto; }
   .nav button[aria-current="page"]::after { display: none; }
   .stats, .split { grid-template-columns: 1fr 1fr; }
