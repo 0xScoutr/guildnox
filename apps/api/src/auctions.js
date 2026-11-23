@@ -109,12 +109,53 @@ export async function availableDkp(member, client = pool) {
   return Math.max(0, member.dkp - reserved);
 }
 
+/** O que mostrar como disponível: com saldo negativo (dívida de leilão), mostra a dívida. */
+export function displayAvailable(total, reserved) {
+  return total < 0 ? total : Math.max(0, total - reserved);
+}
+
+/**
+ * Cobra os leilões que já acabaram e que o membro está ganhando. Sem isso, a
+ * reserva de um leilão que ninguém abre mais (guilda desativada, ou fora dos 300
+ * mais novos da lista) ficaria presa para sempre.
+ */
+export async function finalizeExpiredFor(discordId) {
+  const { rows } = await pool.query(
+    `
+    SELECT a.*
+    FROM auctions a
+    JOIN LATERAL (
+      SELECT b.bidder_discord_id
+      FROM auction_bids b
+      WHERE b.auction_id = a.id
+      ORDER BY b.amount DESC, b.created_at ASC, b.id ASC
+      LIMIT 1
+    ) top ON true
+    WHERE a.finalized_at IS NULL
+      AND a.paused_at IS NULL
+      AND a.expires_at <= now()
+      AND top.bidder_discord_id = $1
+    LIMIT 20
+    `,
+    [discordId],
+  );
+  for (const row of rows) {
+    try {
+      await finalizeIfNeeded(row);
+    } catch (error) {
+      console.error(`leilão #${row.id}: não deu para cobrar agora: ${error.message}`);
+    }
+  }
+}
+
 export async function presentMemberWallet(member) {
-  const reserved = await reservedDkp(member.discord_id);
+  await finalizeExpiredFor(member.discord_id);
+  const fresh = (await pool.query("SELECT * FROM members WHERE discord_id = $1", [member.discord_id])).rows[0] || member;
+  const reserved = await reservedDkp(fresh.discord_id);
   return {
-    ...present(member),
-    dkpTotal: member.dkp,
-    dkp: Math.max(0, member.dkp - reserved),
+    ...present(fresh),
+    dkpTotal: fresh.dkp,
+    dkp: displayAvailable(fresh.dkp, reserved),
     reservedDkp: reserved,
   };
 }
@@ -625,6 +666,8 @@ export async function placeBid(actor, id, amount) {
   if (!Number.isInteger(amount) || amount < 1 || amount > 1000000) {
     throw fail(400, "Informe um valor de lance válido.", { error: "invalid_amount" });
   }
+
+  await finalizeExpiredFor(actor.discord_id);
 
   const client = await pool.connect();
   let shouldFinalize = null;

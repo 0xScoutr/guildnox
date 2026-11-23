@@ -355,6 +355,23 @@ export async function expelMember(actor, targetDiscordId) {
       "DELETE FROM auction_favorites WHERE member_discord_id = $1",
       [targetDiscordId],
     );
+    // Sem os lances do expulso, a liderança volta para quem tinha sido coberto, que pode
+    // já ter gastado aquele DKP em outro leilão (e a cobrança agora é do lance inteiro).
+    // Esses leilões pausam para o oficial conferir antes de continuar.
+    await client.query(
+      `
+      UPDATE auctions a
+      SET paused_at = coalesce(a.paused_at, now())
+      WHERE a.finalized_at IS NULL
+        AND (
+          SELECT b.bidder_discord_id FROM auction_bids b
+          WHERE b.auction_id = a.id
+          ORDER BY b.amount DESC, b.created_at ASC, b.id ASC
+          LIMIT 1
+        ) = $1
+      `,
+      [targetDiscordId],
+    );
     await client.query(
       "DELETE FROM auction_bids WHERE bidder_discord_id = $1",
       [targetDiscordId],

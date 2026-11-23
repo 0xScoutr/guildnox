@@ -134,7 +134,7 @@ export async function getRanking(query = {}, guildId = null) {
         nick: nickOf(row),
         className: member.className || "—",
         level: member.level,
-        dkp: Math.max(0, member.dkp - held),
+        dkp: member.dkp < 0 ? member.dkp : Math.max(0, member.dkp - held),
         power: member.power,
         photo: member.avatarUrl,
         totalCount,
