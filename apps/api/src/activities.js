@@ -99,57 +99,71 @@ async function finalizeIfNeeded(row, client = pool) {
   return rows[0] || row;
 }
 
+function shapeActivity(row, flags, participated, participantsCount) {
+  return {
+    id: Number(row.id),
+    name: row.name,
+    dkpValue: row.dkp_value,
+    durationMinutes: row.duration_minutes,
+    startsAt: row.starts_at,
+    openedAt: row.starts_at,
+    expiresAt: row.expires_at,
+    scheduledAt: flags.isScheduled ? row.starts_at : null,
+    finalizedAt: row.finalized_at,
+    createdAt: row.created_at,
+    isOpen: flags.isOpen,
+    isScheduled: flags.isScheduled,
+    participated: Boolean(participated),
+    participantsCount: Number(participantsCount) || 0,
+    hasSound: Boolean(row.has_sound ?? row.sound_data),
+  };
+}
+
 async function presentActivity(row, viewerId) {
   const fresh = await finalizeIfNeeded(row);
-  const flags = computeFlags(fresh);
-  const count = await pool.query(
-    "SELECT count(*)::int AS n FROM activity_participants WHERE activity_id = $1",
-    [fresh.id],
-  );
-  const mine = await pool.query(
+  const { rows } = await pool.query(
     `
-    SELECT 1 FROM activity_participants
-    WHERE activity_id = $1 AND member_discord_id = $2
-    LIMIT 1
+    SELECT count(*)::int AS n,
+           bool_or(member_discord_id = $2) AS mine
+    FROM activity_participants
+    WHERE activity_id = $1
     `,
     [fresh.id, viewerId],
   );
-  return {
-    id: Number(fresh.id),
-    name: fresh.name,
-    dkpValue: fresh.dkp_value,
-    durationMinutes: fresh.duration_minutes,
-    startsAt: fresh.starts_at,
-    openedAt: fresh.starts_at,
-    expiresAt: fresh.expires_at,
-    scheduledAt: flags.isScheduled ? fresh.starts_at : null,
-    finalizedAt: fresh.finalized_at,
-    createdAt: fresh.created_at,
-    isOpen: flags.isOpen,
-    isScheduled: flags.isScheduled,
-    participated: mine.rowCount > 0,
-    participantsCount: count.rows[0].n,
-    hasSound: Boolean(fresh.has_sound ?? fresh.sound_data),
-  };
+  return shapeActivity(fresh, computeFlags(fresh), rows[0].mine, rows[0].n);
 }
 
 export async function listActivities(viewer, guildId) {
   if (guildId == null) throw fail(400, "Escolha uma guilda para continuar.");
-  const { rows } = await pool.query(
+  // Antes eram 2 consultas (e às vezes um UPDATE) por atividade, até 200 atividades,
+  // a cada 5 s por aba aberta. Agora: um UPDATE que fecha as vencidas e uma consulta.
+  await pool.query(
     `
-    SELECT id, name, dkp_value, duration_minutes, starts_at, expires_at, finalized_at,
-           created_by, created_at, guild_id,
-           (sound_data IS NOT NULL AND sound_data <> '') AS has_sound
-    FROM activities
-    WHERE guild_id = $1
-    ORDER BY starts_at DESC, id DESC
-    LIMIT 200
+    UPDATE activities
+    SET finalized_at = now()
+    WHERE guild_id = $1 AND finalized_at IS NULL AND expires_at <= now()
     `,
     [guildId],
   );
-  const out = [];
-  for (const row of rows) out.push(await presentActivity(row, viewer.discord_id));
-  return out;
+  const { rows } = await pool.query(
+    `
+    SELECT a.id, a.name, a.dkp_value, a.duration_minutes, a.starts_at, a.expires_at,
+           a.finalized_at, a.created_by, a.created_at, a.guild_id,
+           (a.sound_data IS NOT NULL AND a.sound_data <> '') AS has_sound,
+           (SELECT count(*)::int FROM activity_participants p WHERE p.activity_id = a.id) AS participants_count,
+           EXISTS (
+             SELECT 1 FROM activity_participants p
+             WHERE p.activity_id = a.id AND p.member_discord_id = $2
+           ) AS participated
+    FROM activities a
+    WHERE a.guild_id = $1
+    ORDER BY a.starts_at DESC, a.id DESC
+    LIMIT 200
+    `,
+    [guildId, viewer.discord_id],
+  );
+  const now = Date.now();
+  return rows.map((row) => shapeActivity(row, computeFlags(row, now), row.participated, row.participants_count));
 }
 
 export async function createActivity(actor, body, guildId) {
