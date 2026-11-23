@@ -1230,7 +1230,8 @@ function membersView(allMembers, pendingApps = []) {
             onClick: () => openSheet(member),
           }, [t("edit")])
           : null,
-        canEdit(member)
+        // Piloto só o dono convida, pelo próprio perfil.
+        member.discordId === state.me?.loginDiscordId
           ? el("button", {
             className: "btn btn-ghost btn-small",
             type: "button",

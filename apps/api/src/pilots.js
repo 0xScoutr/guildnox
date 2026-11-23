@@ -294,12 +294,11 @@ function assertInGuild(actor) {
 export async function listPilotCandidates(actor, ownerDiscordId = null) {
   if (!actor?.discord_id) throw fail(401, "Faça login para continuar.");
   assertInGuild(actor);
-  let owner = actor;
+  // Só o dono da conta escolhe o piloto (ver invitePilot).
   if (ownerDiscordId && String(ownerDiscordId) !== actor.discord_id) {
-    if (!isOfficer(actor)) throw fail(403, "Só o mestre ou um admin lista pilotos de outra conta.");
-    owner = await findMember(String(ownerDiscordId));
-    if (!owner) throw fail(404, "Conta não encontrada.");
+    throw fail(403, "Só o dono da conta convida o piloto, pelo próprio perfil.");
   }
+  const owner = actor;
   const { rows } = await pool.query(
     `
     SELECT m.discord_id, m.username, m.global_name, m.avatar, m.character_name, m.class_name, m.level, m.guild_id
@@ -325,12 +324,13 @@ export async function invitePilot(actor, body = {}) {
   if (!ownerId) throw fail(401, "Faça login para continuar.");
   assertInGuild(actor);
 
-  // Dono convida na própria conta; oficial pode vincular em outra.
-  let targetOwnerId = ownerId;
+  // Só o dono convida o piloto da própria conta. Antes um oficial podia criar o vínculo
+  // na conta de outra pessoa com uma segunda conta dele como piloto, aceitar ele mesmo e
+  // gastar o DKP dela sem o dono saber.
   if (body.ownerDiscordId && String(body.ownerDiscordId) !== ownerId) {
-    if (!isOfficer(actor)) throw fail(403, "Só o mestre ou um admin vincula piloto em outra conta.");
-    targetOwnerId = String(body.ownerDiscordId);
+    throw fail(403, "Só o dono da conta convida o piloto, pelo próprio perfil.");
   }
+  const targetOwnerId = ownerId;
 
   const owner = await findMember(targetOwnerId);
   if (!owner) throw fail(404, "Dono da conta não encontrado.");
@@ -338,10 +338,6 @@ export async function invitePilot(actor, body = {}) {
   const pilot = await findMemberByQuery(body.pilotQuery || body.username || body.discordId);
   if (!pilot) throw fail(404, "Piloto não encontrado. Peça pra pessoa entrar no site pelo Discord antes.");
   if (pilot.discord_id === owner.discord_id) throw fail(400, "Não dá para vincular a si mesmo.");
-  // Oficial não se coloca como piloto da conta de outra pessoa: daria para gastar o DKP dela.
-  if (targetOwnerId !== ownerId && pilot.discord_id === actor.discord_id) {
-    throw fail(403, "Você não pode se colocar como piloto da conta de outra pessoa.");
-  }
 
   const existingOwner = await pool.query(
     `
@@ -369,8 +365,8 @@ export async function invitePilot(actor, body = {}) {
     throw fail(400, "Esse Discord já está vinculado ou convidado como piloto de outra conta.");
   }
 
-  // Todo vínculo começa pendente e só vale depois que o piloto aceita, inclusive o
-  // criado por oficial (antes o oficial podia ativar na hora, sem ninguém aceitar).
+  // Todo vínculo começa pendente e só vale depois que o piloto aceita.
+  // Vínculo NÃO tira vaga: só "entrar como piloto" / cargo Piloto na ficha.
   const activateNow = false;
   const { rows } = await pool.query(
     `
