@@ -1875,6 +1875,7 @@ input, select {
 
 @media (max-width: 720px) {
   .stats, .split, .auction-grid, .auction-stats, .ranking-list { grid-template-columns: 1fr; }
+  .nav button { padding: 7px 10px; gap: 6px; font-size: 14px; }
   .ranking-podium { grid-template-columns: 1fr; min-height: 0; }
   .ranking-podium-card.rank-1 { order: -1; }
   .members-toolbar { grid-template-columns: 1fr; }
