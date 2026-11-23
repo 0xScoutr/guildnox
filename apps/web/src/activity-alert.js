@@ -105,6 +105,10 @@ async function showDesktopNotification(activity) {
   const registration = await activeRegistration();
   if (registration) {
     try {
+      // Outra aba (ou o push do servidor) já mostrou este aviso: não substitui, porque
+      // a do servidor tem o botão de check-in e fica na tela até a pessoa mexer.
+      const shown = await registration.getNotifications({ tag: options.tag }).catch(() => []);
+      if (shown.length) return;
       await registration.showNotification(title, options);
       return;
     } catch {

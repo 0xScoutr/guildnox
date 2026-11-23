@@ -46,6 +46,7 @@ const TEXT = {
     testTitle: "Notificações ligadas",
     testBody: "Os avisos de atividade vão chegar assim, mesmo com o site fechado.",
     checkin: "Fazer check-in",
+    checkinBusy: "Fazendo check-in em {name}…",
     checkinDone: "Check-in feito em {name}: +{dkp} DKP",
     checkinAlready: "Você já tinha feito check-in em {name}.",
     checkinFail: "Não deu para fazer o check-in. Toque para abrir o site.",
@@ -62,6 +63,7 @@ const TEXT = {
     testTitle: "Notifications on",
     testBody: "Activity alerts will look like this, even with the site closed.",
     checkin: "Check in",
+    checkinBusy: "Checking in to {name}…",
     checkinDone: "Checked in to {name}: +{dkp} DKP",
     checkinAlready: "You had already checked in to {name}.",
     checkinFail: "Couldn't check in. Tap to open the site.",
@@ -78,6 +80,7 @@ const TEXT = {
     testTitle: "Notificaciones activadas",
     testBody: "Los avisos de actividad llegarán así, incluso con el sitio cerrado.",
     checkin: "Hacer check-in",
+    checkinBusy: "Haciendo el check-in en {name}…",
     checkinDone: "Check-in hecho en {name}: +{dkp} DKP",
     checkinAlready: "Ya habías hecho el check-in en {name}.",
     checkinFail: "No se pudo hacer el check-in. Toca para abrir el sitio.",
@@ -377,7 +380,7 @@ function activityPayload(kind, activity, text, now = Date.now(), canCheckInHere 
     activityName: name,
     actions: canCheckIn ? [{ action: "checkin", title: text.checkin }] : [],
     strings: canCheckIn
-      ? { done: text.checkinDone, already: text.checkinAlready, fail: text.checkinFail }
+      ? { busy: fill(text.checkinBusy, { name }), done: text.checkinDone, already: text.checkinAlready, fail: text.checkinFail }
       : null,
   };
 }

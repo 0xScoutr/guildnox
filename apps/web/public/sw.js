@@ -84,7 +84,12 @@ async function showPush(data) {
       .map((item) => ({ action: "checkin", title: text(item.title, 40) }))
     : [];
   const strings = data.strings && typeof data.strings === "object"
-    ? { done: text(data.strings.done), already: text(data.strings.already), fail: text(data.strings.fail) }
+    ? {
+      busy: text(data.strings.busy),
+      done: text(data.strings.done),
+      already: text(data.strings.already),
+      fail: text(data.strings.fail),
+    }
     : null;
 
   await self.registration.showNotification(text(data.title, 120) || "Guildnox", {
@@ -106,12 +111,28 @@ async function showPush(data) {
   });
 }
 
+// Check-ins em andamento, para um segundo toque no botão não mandar outro pedido.
+const checkingIn = new Set();
+
 /** Check-in pelo botão da notificação, sem abrir o site. */
 async function checkIn(note, data) {
   const strings = data.strings || {};
   const name = data.activityName || "";
+  const activityId = Number(data.activityId);
+  if (checkingIn.has(activityId)) return;
+  checkingIn.add(activityId);
   let message = strings.fail || "Guildnox";
   let ok = false;
+  // Resposta na hora, com a mesma tag: o botão some e a pessoa vê que está andando.
+  note.close();
+  await self.registration.showNotification(strings.busy || "…", {
+    icon: ICON,
+    badge: BADGE,
+    tag: note.tag,
+    renotify: false,
+    silent: true,
+    data: { hash: "#/atividades" },
+  }).catch(() => {});
   try {
     const response = await fetch(`${API_BASE}/api/activities/${Number(data.activityId)}/participate`, {
       method: "POST",
@@ -130,8 +151,9 @@ async function checkIn(note, data) {
     }
   } catch {
     /* sem rede: cai na mensagem de falha, que abre o site no toque */
+  } finally {
+    checkingIn.delete(activityId);
   }
-  note.close();
   await self.registration.showNotification(message || "Guildnox", {
     icon: ICON,
     badge: BADGE,

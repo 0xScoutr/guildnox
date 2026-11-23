@@ -26,6 +26,8 @@ let api = null;
 let configPromise = null;
 let currentState = "loading";
 let savedEndpoint = null;
+// O servidor recusou a inscrição (4xx) nesta visita: não tenta de novo a cada volta à aba.
+let syncRefused = false;
 
 export function configurePushClient(apiFn) {
   api = apiFn;
@@ -229,16 +231,22 @@ export function sendTestPush() {
  */
 export async function syncPushSubscription() {
   try {
-    if (!supported() || Notification.permission !== "granted" || readOff()) return getPushState();
+    if (!supported() || Notification.permission !== "granted" || readOff() || syncRefused) return getPushState();
     const config = await serverConfig();
     if (!config?.enabled || !config.publicKey) return getPushState();
     const registration = await activeRegistration(5000);
     if (!registration) return getPushState();
     await subscribeAndSave(registration, config.publicKey);
-  } catch {
-    /* sem rede ou navegador recusou: o botão continua disponível */
+  } catch (error) {
+    // Sem rede ou navegador recusou: o botão continua disponível.
+    if (error?.status >= 400 && error?.status < 500) syncRefused = true;
   }
   return getPushState();
+}
+
+/** A pessoa desligou o push neste aparelho de propósito (botão Desligar). */
+export function pushTurnedOffHere() {
+  return readOff();
 }
 
 /** Ao sair da conta: este aparelho para de receber avisos dela (a permissão fica). */
