@@ -38,7 +38,7 @@ function daysLabel(weekdays) {
 }
 
 export function openAgenda(api, onChange) {
-  const error = el("div", { className: "alert", hidden: "hidden" });
+  const error = el("div", { className: "alert", role: "alert", hidden: "hidden" });
   const list = el("div", { className: "agenda-list" }, [el("p", { className: "muted", text: t("loading") })]);
   const formSlot = el("div", { className: "agenda-form-slot" });
   let schedules = [];
@@ -87,12 +87,15 @@ export function openAgenda(api, onChange) {
           type: "button",
           className: "btn btn-ghost btn-small",
           onClick: async (event) => {
-            event.currentTarget.disabled = true;
+            const button = event.currentTarget;
+            button.disabled = true;
             try {
               await api(`/api/activity-schedules/${item.id}`, { method: "PATCH", body: JSON.stringify({ active: !item.active }) });
               await changed();
             } catch (err) {
               showError(err.message);
+            } finally {
+              button.disabled = false;
             }
           },
         }, [item.active ? t("agenda.pause") : t("agenda.resume")]),
@@ -189,31 +192,37 @@ export function openAgenda(api, onChange) {
     showError("");
     button.disabled = true;
     try {
+      // Pula o que já existe (clique duplo, outra aba ou falha no meio de uma tentativa anterior).
+      const existing = new Set(schedules.map((item) => item.name.toLowerCase()));
       for (const preset of GEENA_RUST1) {
+        if (existing.has(preset.name.toLowerCase())) continue;
         await api("/api/activity-schedules", {
           method: "POST",
           body: JSON.stringify({ ...preset, timezone: "America/Sao_Paulo", active: false }),
         });
       }
-      await changed();
       alert(t("agenda.geenaAdded"));
     } catch (err) {
       showError(err.message);
     } finally {
       button.disabled = false;
+      await changed();
     }
   }
 
   function addButton() {
-    const hasGeena = schedules.some((item) => item.name.startsWith("Chefe de Geena"));
-    return el("div", { className: "agenda-form-actions agenda-add-row" }, [
-      hasGeena ? null : el("button", {
-        type: "button",
-        className: "btn btn-ghost btn-small",
-        title: t("agenda.geenaHint"),
-        onClick: (event) => addGeena(event.currentTarget),
-      }, [t("agenda.geena")]),
-      el("button", { type: "button", className: "btn btn-small agenda-add", onClick: () => drawForm() }, [t("agenda.add")]),
+    const names = new Set(schedules.map((item) => item.name.toLowerCase()));
+    const geenaMissing = GEENA_RUST1.some((preset) => !names.has(preset.name.toLowerCase()));
+    return el("div", { className: "agenda-add-row" }, [
+      geenaMissing ? el("p", { className: "muted auction-hint", text: t("agenda.geenaHint") }) : null,
+      el("div", { className: "agenda-form-actions" }, [
+        geenaMissing ? el("button", {
+          type: "button",
+          className: "btn btn-ghost btn-small",
+          onClick: (event) => addGeena(event.currentTarget),
+        }, [t("agenda.geena")]) : null,
+        el("button", { type: "button", className: "btn btn-small agenda-add", onClick: () => drawForm() }, [t("agenda.add")]),
+      ]),
     ]);
   }
 

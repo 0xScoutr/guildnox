@@ -2,9 +2,9 @@ import { pool } from "./db.js";
 
 /**
  * Agenda automática de bosses: os oficiais cadastram o boss uma vez (dias da
- * semana e horários no fuso de Brasília) e a API cria a atividade sozinha
- * LEAD_MINUTES antes de começar. Daí em diante ela é uma atividade comum: aparece
- * em "Em breve", abre no horário e dispara os avisos.
+ * semana, horários e fuso) e a API cria a atividade sozinha LEAD_MINUTES antes
+ * de começar. Daí em diante ela é uma atividade comum: aparece em "Em breve" e
+ * abre no horário.
  *
  * Cada horário vira no máximo uma atividade: o índice único (schedule_id, starts_at)
  * garante isso mesmo com a API reiniciando ou rodando em duas réplicas.
@@ -18,6 +18,8 @@ const TIMEZONES = new Set(["America/Sao_Paulo", "Etc/GMT+5", "America/New_York"]
 const DEFAULT_TIMEZONE = "America/Sao_Paulo";
 const MAX_SCHEDULES_PER_GUILD = 50;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+// Uma trava só para o ciclo e para editar ou excluir agenda, para os dois não se atropelarem.
+const LOCK_KEY = 7_340_211;
 
 function fail(status, message) {
   const error = new Error(message);
@@ -80,11 +82,20 @@ export async function migrateActivitySchedules() {
     END
     $$ LANGUAGE plpgsql
   `);
-  await pool.query("DROP TRIGGER IF EXISTS activities_schedule_skip ON activities");
+  // Cria o gatilho só se ainda não existe (sem derrubar e recriar a cada boot, o que
+  // abriria uma janela em que uma exclusão não seria anotada).
   await pool.query(`
-    CREATE TRIGGER activities_schedule_skip
-    AFTER DELETE ON activities
-    FOR EACH ROW EXECUTE FUNCTION guildnox_schedule_skip()
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'activities_schedule_skip') THEN
+        CREATE TRIGGER activities_schedule_skip
+        AFTER DELETE ON activities
+        FOR EACH ROW EXECUTE FUNCTION guildnox_schedule_skip();
+      END IF;
+    EXCEPTION WHEN duplicate_object THEN
+      NULL;
+    END
+    $$
   `);
 }
 
@@ -211,6 +222,7 @@ export async function updateSchedule(actor, id, body = {}, guildId) {
   let updated;
   try {
     await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock($1)", [LOCK_KEY]);
     const { rows } = await client.query(
       `UPDATE activity_schedules SET ${sets.join(", ")}, updated_at = now() WHERE id = $${values.length} RETURNING *`,
       values,
@@ -278,6 +290,7 @@ export async function deleteSchedule(actor, id, guildId) {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock($1)", [LOCK_KEY]);
     // Some com as que ainda não começaram; as que já começaram ou acabaram ficam.
     await client.query(
       "DELETE FROM activities WHERE schedule_id = $1 AND starts_at > now()",
@@ -296,17 +309,40 @@ export async function deleteSchedule(actor, id, guildId) {
 }
 
 /**
- * Cria as atividades que começam na próxima hora. A conta do horário é feita no
+ * Cria as atividades que começam na próxima hora (ou que já começaram e ainda
+ * estão abertas, se a API ficou fora do ar). A conta do horário é feita no
  * Postgres, no fuso da agenda: "hoje às 15:00 em Brasília" vira o instante certo.
- * Quem criou a agenda pode ter saído da guilda: aí a atividade fica no nome de um
- * oficial da guilda.
+ * Quem criou a agenda pode ter saído: aí a atividade fica no nome do mestre.
+ * Duas agendas com o mesmo boss no mesmo horário viram uma atividade só (senão o
+ * check-in daria DKP em dobro).
  */
 async function createDueActivities() {
-  const { rows } = await pool.query(
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock($1)", [LOCK_KEY]);
+    const { rows } = await insertDue(client);
+    await client.query("DELETE FROM activity_schedule_skips WHERE starts_at < now() - interval '2 days'");
+    await client.query("COMMIT");
+    for (const row of rows) {
+      console.log(`agenda: criou "${row.name}" (#${row.id}) para ${new Date(row.starts_at).toISOString()}`);
+    }
+    return rows;
+  } catch (error) {
+    try { await client.query("ROLLBACK"); } catch { /* ignore */ }
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+function insertDue(client) {
+  return client.query(
     `
     INSERT INTO activities
       (name, dkp_value, duration_minutes, starts_at, expires_at, created_by, guild_id, schedule_id)
-    SELECT s.name, s.dkp_value, s.duration_minutes, occ.starts_at,
+    SELECT DISTINCT ON (s.guild_id, lower(s.name), occ.starts_at)
+           s.name, s.dkp_value, s.duration_minutes, occ.starts_at,
            occ.starts_at + make_interval(mins => s.duration_minutes),
            coalesce(
              s.created_by,
@@ -321,41 +357,54 @@ async function createDueActivities() {
     CROSS JOIN LATERAL (
       SELECT ((day + t::time) AT TIME ZONE s.timezone) AS starts_at,
              EXTRACT(DOW FROM day)::int AS dow
-      FROM generate_series(0, 1) AS d,
+      FROM generate_series(-1, 1) AS d,
            LATERAL (SELECT (now() AT TIME ZONE s.timezone)::date + d AS day) AS days,
            unnest(s.times) AS t
+      -- Horário ou fuso inválido gravado à mão no banco não pode derrubar as outras agendas.
+      WHERE t ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'
     ) occ
     WHERE s.active
+      AND s.timezone IN ('America/Sao_Paulo', 'Etc/GMT+5', 'America/New_York')
       AND occ.dow = ANY(s.weekdays)
-      AND occ.starts_at > now()
+      AND occ.starts_at + make_interval(mins => s.duration_minutes) > now() + interval '1 minute'
       AND occ.starts_at <= now() + make_interval(mins => $1)
       AND NOT EXISTS (
         SELECT 1 FROM activity_schedule_skips k
         WHERE k.schedule_id = s.id AND k.starts_at = occ.starts_at
       )
+      AND NOT EXISTS (
+        SELECT 1 FROM activities a
+        WHERE a.guild_id = s.guild_id AND lower(a.name) = lower(s.name) AND a.starts_at = occ.starts_at
+      )
+    ORDER BY s.guild_id, lower(s.name), occ.starts_at, s.id
     ON CONFLICT (schedule_id, starts_at) WHERE schedule_id IS NOT NULL DO NOTHING
     RETURNING id, name, guild_id, starts_at
     `,
     [LEAD_MINUTES],
   );
-  for (const row of rows) {
-    console.log(`agenda: criou "${row.name}" (#${row.id}) para ${new Date(row.starts_at).toISOString()}`);
-  }
-  await pool.query("DELETE FROM activity_schedule_skips WHERE starts_at < now() - interval '2 days'");
-  return rows;
 }
 
 let ticking = false;
+let tickAgain = false;
 let timer = null;
 
 export async function runActivitySchedulesTick() {
-  if (ticking) return [];
+  if (ticking) {
+    // Uma mudança chegou no meio de um ciclo: roda de novo no fim, sem perder o pedido.
+    tickAgain = true;
+    return [];
+  }
   ticking = true;
+  const created = [];
   try {
-    return await createDueActivities();
+    do {
+      tickAgain = false;
+      created.push(...await createDueActivities());
+    } while (tickAgain);
+    return created;
   } catch (error) {
     console.error(`agenda: ciclo falhou: ${error.message}`);
-    return [];
+    return created;
   } finally {
     ticking = false;
   }
