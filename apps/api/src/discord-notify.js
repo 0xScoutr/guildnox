@@ -1,4 +1,4 @@
-import { pool } from "./db.js";
+import { jobPool, pool } from "./db.js";
 import { isOfficer } from "./guilds.js";
 
 /**
@@ -7,13 +7,14 @@ import { isOfficer } from "./guilds.js";
  * Os oficiais colam o webhook do canal e escolhem quem marcar (o cargo do clã,
  * @everyone, @here ou ninguém). Os horários vêm de activity-notify.js:
  * - "soon" e "open" marcam o cargo escolhido;
- * - "reminder" (10 min depois de abrir) marca só quem ainda não fez check-in;
- * - "reopen" marca o cargo escolhido.
+ * - "reminder" (10 min depois de abrir) e "reopen" marcam só quem ainda não fez check-in.
  */
 
 const WEBHOOK_RE = /^https:\/\/(?:(?:canary|ptb)\.)?discord(?:app)?\.com\/api\/webhooks\/(\d{17,20})\/([\w-]{40,100})$/;
 const ROLE_RE = /^\d{17,20}$/;
 const MAX_USER_MENTIONS = 80;
+// O Discord recusa mensagem com mais de 2000 caracteres; acima disso marca o cargo.
+const MAX_CONTENT = 1900;
 const TIMEOUT_MS = 10_000;
 
 function fail(status, message) {
@@ -51,7 +52,7 @@ export function normalizeMention(value) {
   if (text === "here" || text === "@here") return "here";
   const role = text.replace(/^role:/, "").replace(/^<@&(\d+)>$/, "$1");
   if (ROLE_RE.test(role)) return `role:${role}`;
-  throw fail(400, "Para marcar um cargo, cole o ID do cargo (ative o Modo desenvolvedor no Discord, clique com o direito no cargo e copie o ID).");
+  throw fail(400, "Para marcar um cargo, cole o ID do cargo (ative o Modo desenvolvedor no Discord, clique com o botão direito no cargo e copie o ID).");
 }
 
 function mentionText(mention) {
@@ -116,8 +117,8 @@ async function postWebhook(url, payload) {
   throw new Error("Discord limitou os envios; tente de novo em alguns segundos.");
 }
 
-async function loadGuildConfig(guildId) {
-  const { rows } = await pool.query(
+async function loadGuildConfig(guildId, db = jobPool) {
+  const { rows } = await db.query(
     "SELECT discord_webhook_url, discord_mention FROM guilds WHERE id = $1",
     [guildId],
   );
@@ -128,7 +129,7 @@ async function loadGuildConfig(guildId) {
 
 /** Quem é da guilda e ainda não fez check-in (o check-in do piloto conta para o dono). */
 async function pendingDiscordIds(guildId, activityId) {
-  const { rows } = await pool.query(
+  const { rows } = await jobPool.query(
     `
     SELECT m.discord_id
     FROM members m
@@ -166,24 +167,18 @@ export async function sendActivityDiscord(kind, activity) {
       content: `${mention}🩸 ${name} abriu! Faça o check-in: ${link} · fecha <t:${ends}:R>`,
       allowed_mentions: allowedMentions(config.mention),
     };
-  } else if (kind === "reopen") {
-    payload = {
-      content: `${mention}🔁 ${name} foi reaberta e fecha <t:${ends}:R>. Quem ainda não fez check-in: ${link}`,
-      allowed_mentions: allowedMentions(config.mention),
-    };
-  } else if (kind === "reminder") {
+  } else if (kind === "reminder" || kind === "reopen") {
     const pending = await pendingDiscordIds(activity.guild_id, activity.id);
     if (!pending.length) return { sent: 0 };
-    if (pending.length > MAX_USER_MENTIONS) {
-      payload = {
-        content: `${mention}⚠️ ${name} fecha <t:${ends}:R> e ${pending.length} pessoas ainda não fizeram check-in: ${link}`,
-        allowed_mentions: allowedMentions(config.mention),
-      };
+    const head = kind === "reopen" ? `🔁 ${name} reabriu e fecha <t:${ends}:R>` : `⚠️ ${name} fecha <t:${ends}:R>`;
+    const who = pending.length === 1 ? "1 pessoa ainda não fez" : `${pending.length} pessoas ainda não fizeram`;
+    const personal = `${head} e ${who} check-in: ${pending.map((id) => `<@${id}>`).join(" ")}\n${link}`;
+    if (pending.length <= MAX_USER_MENTIONS && personal.length <= MAX_CONTENT) {
+      payload = { content: personal, allowed_mentions: allowedMentions(null, pending) };
     } else {
-      const who = pending.length === 1 ? "1 pessoa ainda não fez" : `${pending.length} pessoas ainda não fizeram`;
       payload = {
-        content: `⚠️ ${name} fecha <t:${ends}:R> e ${who} check-in: ${pending.map((id) => `<@${id}>`).join(" ")}\n${link}`,
-        allowed_mentions: allowedMentions(null, pending),
+        content: `${mention}${head} e ${who} check-in: ${link}`,
+        allowed_mentions: allowedMentions(config.mention),
       };
     }
   } else {
@@ -227,7 +222,7 @@ const lastTestAt = new Map();
 
 export async function testGuildDiscord(actor, guildId) {
   await loadOfficerGuild(actor, guildId);
-  const config = await loadGuildConfig(guildId);
+  const config = await loadGuildConfig(guildId, pool);
   if (!config) throw fail(400, "Salve o webhook antes de testar.");
   const now = Date.now();
   if (now - (lastTestAt.get(Number(guildId)) || 0) < 15_000) {

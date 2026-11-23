@@ -89,9 +89,9 @@ const CLAIMS = [
 const RETRY_DELAY_MS = 3_000;
 
 /**
- * Manda por um canal, com uma nova tentativa. Os canais só lançam erro antes de
- * enviar (ler destinatários ou configuração); depois do envio eles só registram no
- * log. Então tentar de novo não duplica o aviso.
+ * Manda por um canal, com uma nova tentativa. Os canais só lançam erro quando o
+ * aviso não saiu (falha ao ler destinatários ou configuração, ou o Discord recusou);
+ * depois do envio eles só registram no log. Então tentar de novo não duplica o aviso.
  */
 async function deliverTo(channel, kind, activity) {
   for (let attempt = 1; attempt <= 2; attempt += 1) {
