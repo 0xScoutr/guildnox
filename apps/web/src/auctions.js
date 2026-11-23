@@ -754,9 +754,11 @@ function openEditAuction(api, apiBase, detail, onDone) {
         itemName: String(itemName.value || "").trim(),
         description: description.value,
         quantity: Number(quantity.value),
-        durationMinutes: Number(durationMinutes.value),
         resetMinutes: Number(resetMinutes.value),
       };
+      // Só manda a duração se o oficial mexeu nela: um lance com a janela aberta pode ter
+      // estendido o fim (anti-snipe), e mandar a duração antiga desfaria isso.
+      if (Number(durationMinutes.value) !== durationValue) payload.durationMinutes = Number(durationMinutes.value);
       if (!hasBids) payload.startingBid = Number(startingBid.value);
       if (canEditStart) {
         const start = new Date(startsAt.value);
