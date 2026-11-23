@@ -8,6 +8,7 @@ import {
 import { auctionImage, auctionsView } from "./auctions.js";
 import { getLang, LANGS, setLang, t } from "./i18n.js";
 import { rankingView } from "./ranking.js";
+import { registerServiceWorker } from "./service-worker.js";
 
 const API = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
 configureActivityAlert(API);
@@ -2072,6 +2073,7 @@ async function render() {
 
 async function boot() {
   applyTheme();
+  registerServiceWorker();
   const params = new URLSearchParams(location.search);
   state.error = params.get("error");
   if (state.error) history.replaceState({}, "", location.pathname);
