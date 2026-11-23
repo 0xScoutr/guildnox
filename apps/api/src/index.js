@@ -636,7 +636,8 @@ app.patch("/api/members/:discordId", requireUser, wrap(async (req, res) => {
         nextDkp,
         expectedDkp,
         reason: "adjustment",
-        label: `Ajuste manual por ${actor.character_name || actor.global_name || actor.username}`,
+        // O @ do Discord vai junto: o nome do personagem qualquer um edita na própria ficha.
+        label: `Ajuste manual por ${actor.character_name || actor.global_name || actor.username} (@${actor.username})`,
         actorDiscordId: actor.discord_id,
       });
       await client.query("COMMIT");
