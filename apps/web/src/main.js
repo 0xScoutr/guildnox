@@ -1276,7 +1276,10 @@ function openSheet(member) {
     max: "2000000000",
     value: String(member.power),
   });
-  const dkp = el("input", { name: "dkp", type: "number", min: "-1000000", max: "1000000", value: String(member.dkp) });
+  // Na própria ficha, member.dkp é o disponível (sem o reservado em lance); o campo
+  // precisa mostrar e comparar com o saldo total.
+  const initialDkp = Number(member.dkpTotal ?? member.dkp);
+  const dkp = el("input", { name: "dkp", type: "number", min: "-1000000", max: "1000000", value: String(initialDkp) });
   const role = el("select", { name: "role" }, ["master", "admin", "member"].map((value) => {
     const option = el("option", { value, text: roleLabel(value) });
     if (value === member.role) option.selected = true;
@@ -1360,7 +1363,11 @@ function openSheet(member) {
       level: Number(level.value),
       power: Number(power.value),
     };
-    if (officer) body.dkp = Number(dkp.value);
+    // Só manda o DKP se o oficial mexeu nele, junto com o valor que estava na tela.
+    if (officer && Number(dkp.value) !== initialDkp) {
+      body.dkp = Number(dkp.value);
+      body.expectedDkp = initialDkp;
+    }
     if (officer && guildSelect.value) body.guildId = Number(guildSelect.value);
     if (master) body.role = role.value;
     try {

@@ -506,8 +506,12 @@ app.patch("/api/members/:discordId", requireUser, wrap(async (req, res) => {
     patch.power = readInt(req.body.power, { min: 0, max: 2000000000, label: "O poder" });
   }
   let nextDkp = null;
+  let expectedDkp = null;
   if ("dkp" in req.body && officer) {
     nextDkp = readInt(req.body.dkp, { min: -1000000, max: 1000000, label: "O DKP" });
+    if (req.body.expectedDkp != null) {
+      expectedDkp = readInt(req.body.expectedDkp, { min: -1000000000, max: 1000000000, label: "O DKP anterior" });
+    }
   }
   if ("role" in req.body && master) {
     if (!ROLES.has(req.body.role)) throw fail(400, "Cargo inválido.");
@@ -523,13 +527,15 @@ app.patch("/api/members/:discordId", requireUser, wrap(async (req, res) => {
     patch.guildId = guildId;
   }
 
-  if (nextDkp != null && nextDkp !== Number(target.dkp)) {
+  if (nextDkp != null) {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
+      // A comparação com o saldo atual acontece com a linha travada, dentro da transação.
       await setDkpAbsolute(client, {
         discordId: target.discord_id,
         nextDkp,
+        expectedDkp,
         reason: "adjustment",
         label: "Ajuste manual",
       });

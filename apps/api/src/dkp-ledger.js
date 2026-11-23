@@ -107,10 +107,15 @@ export async function applyDkpDelta(client, {
   return { amount: delta, balanceAfter: next };
 }
 
-/** Define DKP absoluto (edição de oficial) e registra a diferença. */
+/**
+ * Define DKP absoluto (edição de oficial) e registra a diferença.
+ * Com expectedDkp, só grava se o saldo ainda for o que o oficial viu ao abrir a
+ * ficha; senão um check-in ou leilão cobrado no meio seria apagado sem ninguém ver.
+ */
 export async function setDkpAbsolute(client, {
   discordId,
   nextDkp,
+  expectedDkp = null,
   reason = "adjustment",
   label = "Ajuste manual",
 }) {
@@ -124,6 +129,12 @@ export async function setDkpAbsolute(client, {
     throw err;
   }
   const current = Number(locked.rows[0].dkp);
+  if (expectedDkp != null && current !== Number(expectedDkp)) {
+    const err = new Error(`O DKP mudou desde que a ficha foi aberta (agora está em ${current}). Confira e salve de novo.`);
+    err.status = 409;
+    err.data = { currentDkp: current };
+    throw err;
+  }
   const target = Math.trunc(Number(nextDkp));
   const delta = target - current;
   if (!delta) return { amount: 0, balanceAfter: current };
