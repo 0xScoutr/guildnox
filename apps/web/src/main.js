@@ -1567,6 +1567,9 @@ function openSheet(member) {
   const guildSelect = el("select", { name: "guildId", className: "select" }, [
     el("option", { value: "", text: t("members.loadingGuilds") }),
   ]);
+  // Admin não troca a própria guilda de casa (a API recusa); só o mestre. Quem ainda
+  // não tem guilda de casa pode escolher a primeira.
+  if (isSelf && !master && member.guildId != null) guildSelect.disabled = true;
   const save = el("button", { className: "btn btn-small", type: "submit" }, [t("save")]);
 
   const form = el("form", {}, [

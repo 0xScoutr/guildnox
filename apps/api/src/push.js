@@ -275,21 +275,21 @@ export async function removeSubscription(member, endpoint) {
  * a guilda e pilotos das contas da guilda. Quem já fez check-in fica de fora.
  */
 async function recipientsFor(guildId, activityId) {
-  // can_checkin: o check-in do site usa a guilda "efetiva" (para oficial, a que ele
-  // gerencia). Quem recebe aviso de outra guilda ganha o aviso sem o botão, que daria 404.
+  // can_checkin: o botão "Fazer check-in" só aparece se o check-in vai funcionar: o boss
+  // é da guilda de casa e a pessoa não está gerenciando outra guilda agora (o check-in
+  // do site usa a guilda gerenciada para achar a atividade).
   const { rows } = await jobPool.query(
     `
     WITH targets AS (
       SELECT m.discord_id AS member_id, m.discord_id AS char_id,
-             (CASE WHEN m.role IN ('master', 'admin') AND m.managing_guild_id IS NOT NULL
-                   THEN m.managing_guild_id ELSE m.guild_id END) = $1 AS can_checkin
+             coalesce(m.guild_id = $1 AND (CASE WHEN m.role IN ('master', 'admin') AND m.managing_guild_id IS NOT NULL
+                   THEN m.managing_guild_id ELSE m.guild_id END) = $1, false) AS can_checkin
       FROM members m
       WHERE m.guild_id = $1
          OR (m.role IN ('master', 'admin') AND m.managing_guild_id = $1)
       UNION ALL
       SELECT p.pilot_discord_id AS member_id, p.owner_discord_id AS char_id,
-             (CASE WHEN o.role IN ('master', 'admin') AND o.managing_guild_id IS NOT NULL
-                   THEN o.managing_guild_id ELSE o.guild_id END) = $1 AS can_checkin
+             coalesce(o.guild_id = $1, false) AS can_checkin
       FROM account_pilots p
       JOIN members o ON o.discord_id = p.owner_discord_id
       WHERE p.status = 'active' AND o.guild_id = $1

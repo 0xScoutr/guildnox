@@ -634,6 +634,10 @@ export async function placeBid(actor, id, amount) {
     const locked = await client.query("SELECT * FROM auctions WHERE id = $1 FOR UPDATE", [id]);
     const auction = locked.rows[0];
     if (!auction) throw fail(404, "Leilão não encontrado.");
+    // Mesmo motivo do check-in: o DKP é da aliança, então só dá lance na guilda de casa.
+    if (Number(auction.guild_id) !== Number(actor.guild_id)) {
+      throw fail(403, "Você só dá lance nos leilões da sua guilda.");
+    }
 
     const status = computeStatus(auction);
     if (status === "ended" || auction.finalized_at) {

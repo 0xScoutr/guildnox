@@ -392,6 +392,11 @@ export async function participateActivity(actor, id, guildId = null, alsoCredit 
     if (guildId != null && Number(activity.guild_id) !== Number(guildId)) {
       throw fail(404, "Atividade não encontrada.");
     }
+    // O DKP é um só para a aliança: só conta boss da guilda de casa. Sem isso, um
+    // oficial ganhava DKP em todas as guildas trocando a que está gerenciando.
+    if (Number(activity.guild_id) !== Number(actor.guild_id)) {
+      throw fail(403, "Você só ganha DKP nos bosses da sua guilda.");
+    }
     activity = await finalizeIfNeeded(activity, client);
     const flags = computeFlags(activity);
     if (flags.finalized || activity.finalized_at) {

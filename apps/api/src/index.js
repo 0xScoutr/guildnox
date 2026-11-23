@@ -212,7 +212,11 @@ async function requireGuild(req, res, next) {
     const ctx = await getPilotContext(req.member, { actAs: pilotActAs(req) });
     req.pilotContext = ctx;
     req.actor = ctx.actor;
-    const guildId = effectiveGuildId(ctx.actor);
+    // Piloto joga na guilda de casa do dono, não na que o dono (oficial) está gerenciando:
+    // com o DKP só valendo na guilda de casa, senão o piloto não fazia check-in em lugar nenhum.
+    const guildId = ctx.piloting && ctx.actor?.guild_id != null
+      ? Number(ctx.actor.guild_id)
+      : effectiveGuildId(ctx.actor);
     if (guildId == null) {
       return res.status(403).json({
         error: "Escolha uma guilda para continuar.",
@@ -591,6 +595,19 @@ app.patch("/api/members/:discordId", requireUser, wrap(async (req, res) => {
   if ("role" in req.body && !master) throw fail(403, "Só o mestre altera cargos.");
   if ("guildId" in req.body && !officer) throw fail(403, "Só o mestre ou um admin altera a guilda do membro.");
   if ("pilotAccount" in req.body && !officer) throw fail(403, "Só o mestre ou um admin marca piloto.");
+  // Admin não mexe na própria guilda de casa (só o mestre): trocar, fazer check-in no
+  // boss da outra guilda e voltar driblaria a regra do DKP. Marcar a si mesmo como piloto
+  // (fica sem guilda) e depois escolher outra seria o mesmo atalho. A ficha sempre manda
+  // a guilda junto, então só recusa quando ela muda de fato; quem ainda não tem guilda
+  // de casa pode escolher a primeira.
+  if (isSelf && !master) {
+    if (req.body.pilotAccount === true && !target.pilot_account) {
+      throw fail(403, "Peça pro mestre mudar a sua conta.");
+    }
+    if ("guildId" in req.body && target.guild_id != null && Number(req.body.guildId) !== Number(target.guild_id)) {
+      throw fail(403, "Peça pro mestre trocar a sua guilda.");
+    }
+  }
 
   const patch = {};
   if ("characterName" in req.body) patch.characterName = readText(req.body.characterName, 32, "O nome");
@@ -790,7 +807,12 @@ app.post("/api/activities/:id/participate", requireUser, requireGuild, wrap(asyn
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id < 1) throw fail(400, "Atividade inválida.");
   const actor = req.actor || req.member;
-  const alsoCredit = req.pilotContext?.piloting ? req.member : null;
+  // O piloto ganha junto se for conta piloto (sem guilda) ou da mesma guilda do dono;
+  // membro de outra guilda pilotando não leva DKP por aqui.
+  const pilot = req.member;
+  const pilotCanEarn = Boolean(pilot.pilot_account) && pilot.guild_id == null
+    || (pilot.guild_id != null && Number(pilot.guild_id) === Number(actor.guild_id));
+  const alsoCredit = req.pilotContext?.piloting && pilotCanEarn ? pilot : null;
   res.json(await participateActivity(actor, id, req.guildId, alsoCredit));
 }));
 
