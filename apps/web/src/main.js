@@ -744,6 +744,7 @@ function mentionChoice(mention) {
 function openGuildDiscord(guild, onDone) {
   const status = guild.discord || { configured: false, mention: null };
   const error = el("div", { className: "alert", hidden: "hidden" });
+  const saved = el("p", { className: "muted auction-hint", hidden: "hidden", text: t("discord.saved") });
   const webhook = el("input", {
     type: "url",
     autocomplete: "off",
@@ -815,11 +816,13 @@ function openGuildDiscord(guild, onDone) {
     el("label", { className: "auction-field" }, [t("discord.mention"), choice]),
     roleField,
     el("p", { className: "muted auction-hint", text: t("discord.reminderNote") }),
+    saved,
     el("div", { className: "sheet-actions" }, [remove, test, save]),
   ]);
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     error.hidden = true;
+    saved.hidden = true;
     const body = { mention: choice.value === "role" ? roleId.value.trim() : choice.value };
     if (choice.value === "role" && !body.mention) {
       error.hidden = false;
@@ -835,8 +838,15 @@ function openGuildDiscord(guild, onDone) {
     }
     save.disabled = true;
     try {
-      await api(`/api/guilds/${guild.id}/discord`, { method: "PATCH", body: JSON.stringify(body) });
-      dialog.close();
+      const data = await api(`/api/guilds/${guild.id}/discord`, { method: "PATCH", body: JSON.stringify(body) });
+      // Fica aberto para dar para testar o webhook que acabou de salvar.
+      Object.assign(status, data.discord || { configured: true });
+      webhook.value = "";
+      webhook.placeholder = t("discord.webhookKeep");
+      test.disabled = !status.configured;
+      remove.disabled = !status.configured;
+      saved.hidden = false;
+      save.disabled = false;
       await onDone?.();
     } catch (err) {
       error.hidden = false;
