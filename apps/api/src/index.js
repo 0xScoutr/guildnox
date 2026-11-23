@@ -68,6 +68,7 @@ import {
 } from "./push.js";
 import { migrateActivityNotify, startActivityNotify } from "./activity-notify.js";
 import { discordStatusByGuild, migrateDiscordNotify, setGuildDiscord, testGuildDiscord } from "./discord-notify.js";
+import { startVoiceBot, testGuildVoice, voiceStatus } from "./voice-notify.js";
 import { getRanking } from "./ranking.js";
 import {
   acceptPilotInvite,
@@ -394,8 +395,9 @@ app.get("/api/guilds", requireUser, wrap(async (req, res) => {
   res.json({
     guilds: guilds.map((guild) => ({
       ...guild,
-      discord: discord.get(guild.id) || { configured: false, mention: null },
+      discord: discord.get(guild.id) || { configured: false, mention: null, voiceChannelId: null },
     })),
+    voiceBot: voiceStatus(),
   });
 }));
 
@@ -425,6 +427,12 @@ app.post("/api/guilds/:id/discord/test", requireUser, wrap(async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id < 1) throw fail(400, "Guilda inválida.");
   res.json(await testGuildDiscord(req.member, id));
+}));
+
+app.post("/api/guilds/:id/discord/voice-test", requireUser, wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id < 1) throw fail(400, "Guilda inválida.");
+  res.json(await testGuildVoice(req.member, id));
 }));
 
 app.delete("/api/guilds/:id", requireUser, wrap(async (req, res) => {
@@ -863,4 +871,5 @@ configurePush();
 app.listen(PORT, () => {
   console.log(`guildnox api em :${PORT}`);
   startActivityNotify();
+  startVoiceBot();
 });

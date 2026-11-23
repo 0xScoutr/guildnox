@@ -35,7 +35,8 @@ export async function migrateDiscordNotify() {
   await pool.query(`
     ALTER TABLE guilds
       ADD COLUMN IF NOT EXISTS discord_webhook_url TEXT,
-      ADD COLUMN IF NOT EXISTS discord_mention TEXT
+      ADD COLUMN IF NOT EXISTS discord_mention TEXT,
+      ADD COLUMN IF NOT EXISTS discord_voice_channel_id TEXT
   `);
 }
 
@@ -80,10 +81,11 @@ function unix(date) {
 
 /** Para oficiais: diz se a guilda tem webhook (nunca devolve o endereço, que é segredo). */
 export async function discordStatusByGuild() {
-  const { rows } = await pool.query("SELECT id, discord_webhook_url, discord_mention FROM guilds");
+  const { rows } = await pool.query("SELECT id, discord_webhook_url, discord_mention, discord_voice_channel_id FROM guilds");
   return new Map(rows.map((row) => [Number(row.id), {
     configured: Boolean(row.discord_webhook_url),
     mention: row.discord_mention || null,
+    voiceChannelId: row.discord_voice_channel_id || null,
   }]));
 }
 
@@ -222,10 +224,18 @@ export async function setGuildDiscord(actor, guildId, body = {}) {
     values.push(normalizeMention(body.mention));
     sets.push(`discord_mention = $${values.length}`);
   }
+  if ("voiceChannelId" in body) {
+    const channelId = body.voiceChannelId == null ? "" : String(body.voiceChannelId).trim();
+    if (channelId && !ROLE_RE.test(channelId)) {
+      throw fail(400, "Cole o ID do canal de voz (clique com o botão direito no canal > Copiar ID do canal).");
+    }
+    values.push(channelId || null);
+    sets.push(`discord_voice_channel_id = $${values.length}`);
+  }
   if (!sets.length) throw fail(400, "Nada para salvar.");
   values.push(guildId);
   await pool.query(`UPDATE guilds SET ${sets.join(", ")} WHERE id = $${values.length}`, values);
-  return (await discordStatusByGuild()).get(Number(guildId)) || { configured: false, mention: null };
+  return (await discordStatusByGuild()).get(Number(guildId)) || { configured: false, mention: null, voiceChannelId: null };
 }
 
 const lastTestAt = new Map();

@@ -1,6 +1,7 @@
 import { jobPool, pool } from "./db.js";
 import { sendActivityDiscord } from "./discord-notify.js";
 import { pushEnabled, sendActivityPush } from "./push.js";
+import { sendActivityVoice, voiceEnabled } from "./voice-notify.js";
 
 /**
  * Quando cada aviso de atividade sai. Três avisos por atividade:
@@ -24,6 +25,8 @@ const REMINDER_MINUTES = 10;
 const CHANNELS = [
   { name: "push", enabled: pushEnabled, send: sendActivityPush },
   { name: "discord", enabled: () => true, send: sendActivityDiscord },
+  // A voz leva segundos (entrar, falar, sair): roda à parte para não atrasar os outros canais.
+  { name: "voz", enabled: voiceEnabled, send: sendActivityVoice, background: true },
 ];
 
 function anyChannel() {
@@ -112,7 +115,11 @@ async function deliverTo(channel, kind, activity) {
 }
 
 async function deliver(kind, activity) {
-  await Promise.all(CHANNELS.filter((channel) => channel.enabled()).map((channel) => deliverTo(channel, kind, activity)));
+  const active = CHANNELS.filter((channel) => channel.enabled());
+  for (const channel of active.filter((item) => item.background)) {
+    deliverTo(channel, kind, activity).catch(() => {});
+  }
+  await Promise.all(active.filter((item) => !item.background).map((channel) => deliverTo(channel, kind, activity)));
 }
 
 let ticking = false;

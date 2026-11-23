@@ -857,6 +857,16 @@ function openGuildDiscord(guild, onDone) {
     value: status.mention?.startsWith("role:") ? status.mention.slice(5) : "",
   });
   const roleField = el("label", { className: "auction-field" }, [t("discord.roleId"), roleId]);
+  const voiceChannel = el("input", {
+    inputmode: "numeric",
+    placeholder: "123456789012345678",
+    value: status.voiceChannelId || "",
+  });
+  const voiceBot = guild.voiceBot || {};
+  const voiceHint = el("p", {
+    className: "muted auction-hint",
+    text: voiceBot.bot && voiceBot.tts ? t("discord.voiceHelp") : t("discord.voiceOff"),
+  });
   const syncRole = () => { roleField.hidden = choice.value !== "role"; };
   choice.addEventListener("change", syncRole);
   syncRole();
@@ -880,16 +890,34 @@ function openGuildDiscord(guild, onDone) {
       }
     },
   }, [t("discord.test")]);
+  const testVoice = el("button", {
+    className: "btn btn-ghost btn-small",
+    type: "button",
+    disabled: status.voiceChannelId && voiceBot.bot && voiceBot.tts ? undefined : "disabled",
+    onClick: async () => {
+      error.hidden = true;
+      testVoice.disabled = true;
+      try {
+        await api(`/api/guilds/${guild.id}/discord/voice-test`, { method: "POST", body: "{}" });
+        alert(t("discord.voiceTestSent"));
+      } catch (err) {
+        error.hidden = false;
+        error.textContent = err.message;
+      } finally {
+        testVoice.disabled = false;
+      }
+    },
+  }, [t("discord.voiceTest")]);
   const remove = el("button", {
     className: "btn btn-ghost btn-small btn-danger",
     type: "button",
-    disabled: status.configured ? undefined : "disabled",
+    disabled: status.configured || status.voiceChannelId ? undefined : "disabled",
     onClick: async () => {
       if (!confirm(t("discord.removeConfirm", { name: guild.name }))) return;
       try {
         await api(`/api/guilds/${guild.id}/discord`, {
           method: "PATCH",
-          body: JSON.stringify({ webhookUrl: null }),
+          body: JSON.stringify({ webhookUrl: null, voiceChannelId: null }),
         });
         dialog.close();
         await onDone?.();
@@ -909,24 +937,30 @@ function openGuildDiscord(guild, onDone) {
     el("label", { className: "auction-field" }, [t("discord.mention"), choice]),
     roleField,
     el("p", { className: "muted auction-hint", text: t("discord.reminderNote") }),
+    el("label", { className: "auction-field" }, [t("discord.voiceChannel"), voiceChannel]),
+    voiceHint,
     saved,
-    el("div", { className: "sheet-actions" }, [remove, test, save]),
+    el("div", { className: "sheet-actions" }, [remove, testVoice, test, save]),
   ]);
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     error.hidden = true;
     saved.hidden = true;
-    const body = { mention: choice.value === "role" ? roleId.value.trim() : choice.value };
-    if (choice.value === "role" && !body.mention) {
-      error.hidden = false;
-      error.textContent = t("discord.roleMissing");
-      return;
-    }
     const url = webhook.value.trim();
+    const hasWebhook = status.configured || Boolean(url);
+    const body = { voiceChannelId: voiceChannel.value.trim() || null };
     if (url) body.webhookUrl = url;
-    else if (!status.configured) {
+    // Cargo só importa para o canal de texto: quem usa só a voz não precisa preencher.
+    if (hasWebhook) {
+      body.mention = choice.value === "role" ? roleId.value.trim() : choice.value;
+      if (choice.value === "role" && !body.mention) {
+        error.hidden = false;
+        error.textContent = t("discord.roleMissing");
+        return;
+      }
+    } else if (!body.voiceChannelId) {
       error.hidden = false;
-      error.textContent = t("discord.webhookMissing");
+      error.textContent = t("discord.nothingToSave");
       return;
     }
     save.disabled = true;
@@ -937,7 +971,8 @@ function openGuildDiscord(guild, onDone) {
       webhook.value = "";
       webhook.placeholder = t("discord.webhookKeep");
       test.disabled = !status.configured;
-      remove.disabled = !status.configured;
+      remove.disabled = !(status.configured || status.voiceChannelId);
+      testVoice.disabled = !(status.voiceChannelId && voiceBot.bot && voiceBot.tts);
       saved.hidden = false;
       save.disabled = false;
       await onDone?.();
@@ -971,7 +1006,7 @@ function openManageGuilds(onDone) {
   async function load() {
     try {
       const data = await api("/api/guilds");
-      const guilds = data.guilds || [];
+      const guilds = (data.guilds || []).map((guild) => ({ ...guild, voiceBot: data.voiceBot || {} }));
       if (!guilds.length) {
         body.replaceChildren(el("p", { className: "muted", text: t("members.noGuildsRegistered") }));
         return;
@@ -989,9 +1024,9 @@ function openManageGuilds(onDone) {
             el("button", {
               className: "btn btn-ghost btn-small",
               type: "button",
-              title: guild.discord?.configured ? t("discord.on") : t("discord.off"),
+              title: guild.discord?.configured || guild.discord?.voiceChannelId ? t("discord.on") : t("discord.off"),
               onClick: () => openGuildDiscord(guild, load),
-            }, [guild.discord?.configured ? t("discord.buttonOn") : t("discord.button")]),
+            }, [guild.discord?.configured || guild.discord?.voiceChannelId ? t("discord.buttonOn") : t("discord.button")]),
             el("button", {
               className: "btn btn-ghost btn-small",
               type: "button",
